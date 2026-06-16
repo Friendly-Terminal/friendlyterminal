@@ -2,9 +2,11 @@ import SwiftUI
 
 struct NLCommandBarView: View {
     @Environment(SessionState.self) private var session
+    @Environment(Workspace.self) private var workspace
     @State private var inputText: String = ""
     @State private var mode: InputMode = .run
     @State private var nlState: NLState = .idle
+    @State private var textFieldWidth: CGFloat = 0
     @FocusState private var isFocused: Bool
 
     enum InputMode: String, CaseIterable {
@@ -81,6 +83,23 @@ struct NLCommandBarView: View {
         .background(.bar)
         .animation(.easeInOut(duration: 0.2), value: nlState)
         .onAppear { isFocused = true }
+        .onChange(of: session.isTUIActive) { _, tuiActive in
+            // Yield keyboard focus to the live terminal while a full-screen
+            // program runs; take it back here when it exits.
+            isFocused = !tuiActive
+        }
+        .onChange(of: session.commandBarRequestToken) { _, _ in
+            // A command was picked from the sidebar help — load it for editing.
+            inputText = session.commandBarDraft
+            mode = .run
+            isFocused = true
+        }
+        .onChange(of: isFocused) { _, focused in
+            // Typing here makes this the active pane (drives sidebar/breadcrumb).
+            if focused { workspace.focus(session.id) }
+        }
+        .disabled(session.isTUIActive)
+        .opacity(session.isTUIActive ? 0.4 : 1)
     }
 
     private var chatInputBar: some View {
@@ -88,10 +107,13 @@ struct NLCommandBarView: View {
             modeToggle
 
             ZStack(alignment: .leading) {
-                if inputText.isEmpty {
+                // Hide the placeholder when the field is too narrow (e.g. a
+                // shrunk split pane) so it doesn't show as clipped clutter.
+                if inputText.isEmpty && textFieldWidth > 120 {
                     Text(mode == .run ? "Run a command…" : "Ask anything — I'll find the right command…")
                         .font(.system(size: 14, design: mode == .run ? .monospaced : .default))
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                         .allowsHitTesting(false)
                 }
 
@@ -101,6 +123,11 @@ struct NLCommandBarView: View {
                     .focused($isFocused)
                     .lineLimit(1...5)
                     .onSubmit { submit() }
+            }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newWidth in
+                textFieldWidth = newWidth
             }
 
             sendButton
@@ -215,5 +242,6 @@ struct NLCommandBarView: View {
 #Preview {
     NLCommandBarView()
         .environment(SessionState())
+        .environment(Workspace())
         .frame(width: 700)
 }

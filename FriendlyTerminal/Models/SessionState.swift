@@ -3,7 +3,9 @@ import Observation
 
 @Observable
 @MainActor
-final class SessionState {
+final class SessionState: Identifiable {
+    let id = UUID()
+
     var windowTitle: String = "FriendlyTerminal"
 
     var cwd: String = FileManager.default.homeDirectoryForCurrentUser.path
@@ -20,13 +22,28 @@ final class SessionState {
     }
 
     var fileItems: [FileItem] = []
-    var sidebarVisible: Bool = true
 
     let blockStore: BlockStore = BlockStore()
     var isTUIActive: Bool = false
+
+    // Interactivity signals from the running command, used to decide when to
+    // switch to the live terminal (see TerminalContainerView).
+    var altScreenOn: Bool = false
+    var bracketedPasteOn: Bool = false
+
     var pendingCommandText: String = ""
 
+    /// Text the command bar should adopt, plus a token the bar watches so the
+    /// same command can be requested twice in a row.
+    private(set) var commandBarDraft: String = ""
+    private(set) var commandBarRequestToken: Int = 0
+
     var sendToShell: ((String) -> Void)?
+
+    func prefillCommand(_ command: String) {
+        commandBarDraft = command
+        commandBarRequestToken += 1
+    }
 
     func updateCwd(_ path: String) {
         cwd = path

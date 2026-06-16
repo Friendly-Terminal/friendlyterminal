@@ -7,11 +7,19 @@ struct TerminalBridge: NSViewRepresentable {
     var onTitleChange: (String) -> Void
     var onShellEvent: (ShellIntegrationParser.Event) -> Void
     var onTUIChange: (Bool) -> Void
+    var isTUIActive: Bool = false
+    var isFocusedPane: Bool = true
+    var onTerminated: (() -> Void)?
+    var onFocusRequested: (() -> Void)?
     var onReady: ((@escaping (String) -> Void) -> Void)?
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let tv = FriendlyTerminalView(frame: .zero)
         tv.processDelegate = context.coordinator
+        tv.onShellEvent = onShellEvent
+        tv.onFocusRequested = onFocusRequested
+        tv.isActivePane = isFocusedPane
+        tv.interactiveMode = isTUIActive
         applyAppearance(tv)
 
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
@@ -28,10 +36,25 @@ struct TerminalBridge: NSViewRepresentable {
 
     func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
         applyAppearance(nsView)
+        (nsView as? FriendlyTerminalView)?.onShellEvent = onShellEvent
+        (nsView as? FriendlyTerminalView)?.onFocusRequested = onFocusRequested
+        (nsView as? FriendlyTerminalView)?.isActivePane = isFocusedPane
+        (nsView as? FriendlyTerminalView)?.interactiveMode = isTUIActive
         context.coordinator.onCwdChange = onCwdChange
         context.coordinator.onTitleChange = onTitleChange
         context.coordinator.onShellEvent = onShellEvent
         context.coordinator.onTUIChange = onTUIChange
+        context.coordinator.onTerminated = onTerminated
+
+        // When an interactive program takes over, hand it keyboard focus — but
+        // only for the focused pane, so it doesn't steal typing from the other
+        // pane in a split window.
+        if isTUIActive && isFocusedPane {
+            DispatchQueue.main.async { [weak nsView] in
+                guard let nsView, nsView.window?.firstResponder !== nsView else { return }
+                nsView.window?.makeFirstResponder(nsView)
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -85,6 +108,7 @@ final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
     var onTitleChange: (String) -> Void
     var onShellEvent: (ShellIntegrationParser.Event) -> Void
     var onTUIChange: (Bool) -> Void
+    var onTerminated: (() -> Void)?
 
     init(
         onCwdChange: @escaping (String) -> Void,
@@ -99,7 +123,12 @@ final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
     }
 
     func processTerminated(source: TerminalView, exitCode: Int32?) {
-        NSApplication.shared.terminate(nil)
+        // Let the workspace decide: close just this pane, or quit if it's the last.
+        if let onTerminated {
+            onTerminated()
+        } else {
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}

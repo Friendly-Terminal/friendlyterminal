@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct FriendlyTerminalApp: App {
-    @State private var sessionState = SessionState()
+    @State private var workspace = Workspace()
 
     var body: some Scene {
         WindowGroup {
             MainWindowView()
-                .environment(sessionState)
+                .environment(workspace)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)

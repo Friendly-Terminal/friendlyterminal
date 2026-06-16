@@ -12,9 +12,10 @@ struct FriendlyTerminalCommands: Commands {
             }
             .keyboardShortcut("k", modifiers: .command)
 
-            Button("New Session") {
+            Button("Split Terminal") {
+                NotificationCenter.default.post(name: .newPane, object: nil)
             }
-            .keyboardShortcut("t", modifiers: .command)
+            .keyboardShortcut("d", modifiers: .command)
 
             Divider()
 
@@ -41,4 +42,5 @@ struct FriendlyTerminalCommands: Commands {
 extension Notification.Name {
     static let sendToShell = Notification.Name("FT.sendToShell")
     static let toggleSidebar = Notification.Name("FT.toggleSidebar")
+    static let newPane = Notification.Name("FT.newPane")
 }
