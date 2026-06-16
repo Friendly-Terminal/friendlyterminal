@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// A friendly cheat-sheet shown in the sidebar while a full-screen terminal
-/// program is running, so non-technical users know how to drive it (and, most
-/// importantly, how to get out).
 struct InteractiveHintView: View {
     @Environment(SessionState.self) private var session
 
@@ -78,6 +75,8 @@ struct ProgramHint {
 
     static func detect(from command: String) -> ProgramHint {
         switch primaryProgram(in: command) {
+        case "claude":
+            return claude
         case "vim", "vi", "nvim", "view":
             return vim
         case "nano", "pico":
@@ -89,27 +88,38 @@ struct ProgramHint {
         case "top", "htop", "btop":
             return monitor
         case "git":
-            return pager   // git log / diff / show open in a pager
+            return pager
         default:
             return generic
         }
     }
 
-    /// Best-effort guess of the foreground program from a command line.
     private static func primaryProgram(in command: String) -> String {
-        // A pipeline hands the screen to its last stage, e.g. `cat x | less`.
         let lastStage = command.split(separator: "|").last.map(String.init) ?? command
         let tokens = lastStage
             .split(whereSeparator: { $0 == " " || $0 == "\t" })
             .map(String.init)
 
         for token in tokens {
-            if token.contains("=") { continue }                       // VAR=value
+            if token.contains("=") { continue }
             if ["sudo", "command", "exec", "time", "env"].contains(token) { continue }
             return (token as NSString).lastPathComponent.lowercased()
         }
         return ""
     }
+
+    static let claude = ProgramHint(
+        title: "Claude Code",
+        subtitle: "Use the sidebar controls to drive Claude — no typing needed.",
+        icon: "sparkles",
+        keys: [
+            Key(key: "y + ↵", description: "Approve a permission prompt"),
+            Key(key: "n + ↵", description: "Reject a permission prompt"),
+            Key(key: "Ctrl C", description: "Stop the current operation"),
+            Key(key: "/clear", description: "Clear conversation history"),
+            Key(key: "/exit", description: "Exit Claude and return to shell"),
+        ]
+    )
 
     static let pager = ProgramHint(
         title: "Text viewer",
