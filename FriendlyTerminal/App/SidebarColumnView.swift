@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// The left column: file list on top, and either the interactive-program hints
-/// (during a TUI) or the command-help menu below. Operates on whichever session
-/// is currently focused (injected by the parent).
 struct SidebarColumnView: View {
     @Environment(SessionState.self) private var session
 
@@ -15,7 +12,9 @@ struct SidebarColumnView: View {
             Divider()
 
             Group {
-                if session.isTUIActive {
+                if session.isTUIActive && session.isClaudeRunning {
+                    ClaudeControlBarView()
+                } else if session.isTUIActive {
                     InteractiveHintView()
                 } else {
                     CommandHelpView()
@@ -26,5 +25,6 @@ struct SidebarColumnView: View {
             .transition(.opacity)
         }
         .animation(.easeInOut(duration: 0.2), value: session.isTUIActive)
+        .animation(.easeInOut(duration: 0.2), value: session.isClaudeRunning)
     }
 }
