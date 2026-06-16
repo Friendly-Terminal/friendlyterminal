@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+struct GitStatus {
+    let branch: String
+    let isDirty: Bool
+    let uncommittedCount: Int
+}
+
 @Observable
 @MainActor
 final class SessionState: Identifiable {
@@ -9,6 +15,9 @@ final class SessionState: Identifiable {
     var windowTitle: String = "FriendlyTerminal"
 
     var cwd: String = FileManager.default.homeDirectoryForCurrentUser.path
+
+    var gitStatus: GitStatus? = nil
+    @ObservationIgnored private var gitTask: Task<Void, Never>? = nil
 
     var breadcrumbs: [BreadcrumbItem] {
         let parts = cwd.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
@@ -48,6 +57,42 @@ final class SessionState: Identifiable {
     func updateCwd(_ path: String) {
         cwd = path
         refreshFileItems()
+        refreshGitStatus()
+    }
+
+    func refreshGitStatus() {
+        gitTask?.cancel()
+        let path = cwd
+        gitTask = Task { [weak self] in
+            let status: GitStatus? = await withCheckedContinuation { cont in
+                DispatchQueue.global(qos: .utility).async {
+                    cont.resume(returning: SessionState.queryGitStatus(at: path))
+                }
+            }
+            guard !Task.isCancelled else { return }
+            self?.gitStatus = status
+        }
+    }
+
+    nonisolated private static func queryGitStatus(at path: String) -> GitStatus? {
+        func run(_ args: [String]) -> String? {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            p.arguments = ["-C", path] + args
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = Pipe()
+            try? p.run()
+            p.waitUntilExit()
+            guard p.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard let branch = run(["rev-parse", "--abbrev-ref", "HEAD"]) else { return nil }
+        let porcelain = run(["status", "--porcelain"]) ?? ""
+        let changedFiles = porcelain.components(separatedBy: .newlines).filter { !$0.isEmpty }.count
+        return GitStatus(branch: branch, isDirty: changedFiles > 0, uncommittedCount: changedFiles)
     }
 
     func navigateShellTo(_ path: String) {
