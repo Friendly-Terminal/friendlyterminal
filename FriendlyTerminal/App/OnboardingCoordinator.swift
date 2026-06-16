@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// Stable identifiers for the UI elements the welcome tour can point at. Each
-/// one is attached to a real control with `.coachmarkTarget(_:)`; a step's
-/// `targetID` matches one of these so the overlay can spotlight it.
 enum Coachmark {
     static let commandBar = "commandBar"
     static let modeToggle = "modeToggle"
@@ -10,13 +7,11 @@ enum Coachmark {
     static let commandHelp = "commandHelp"
     static let breadcrumbs = "breadcrumbs"
     static let addPane = "addPane"
+    static let claudeButton = "claudeButton"
 }
 
-/// One stop in the first-launch tour: a short explanation pointed at one control
-/// (or centered, with no target, for the welcome and closing cards).
 struct OnboardingStep: Identifiable {
     let id = UUID()
-    /// The `Coachmark` id of the control to spotlight, or nil for a centered card.
     let targetID: String?
     let symbol: String
     let title: String
@@ -39,7 +34,7 @@ struct OnboardingStep: Identifiable {
             targetID: Coachmark.modeToggle,
             symbol: "sparkles",
             title: "Or just ask in plain English",
-            message: "Switch this to “Ask AI” and describe what you want — FriendlyTerminal suggests the command, and you decide whether to run it."
+            message: "Switch this to "Ask AI" and describe what you want — FriendlyTerminal suggests the command, and you decide whether to run it."
         ),
         OnboardingStep(
             targetID: Coachmark.fileSidebar,
@@ -66,6 +61,12 @@ struct OnboardingStep: Identifiable {
             message: "Open another terminal next to this one when you want to do two things at once. You can have several at a time."
         ),
         OnboardingStep(
+            targetID: Coachmark.claudeButton,
+            symbol: "sparkles",
+            title: "Chat with Claude AI",
+            message: "Click here to start Claude Code — an AI that reads your files, fixes bugs, and builds features. No commands to memorize. When Claude is running, this sidebar becomes a control panel with clickable buttons."
+        ),
+        OnboardingStep(
             targetID: nil,
             symbol: "checkmark.circle",
             title: "You're all set",
@@ -74,8 +75,6 @@ struct OnboardingStep: Identifiable {
     ]
 }
 
-/// Drives the first-launch welcome tour: which step is showing, and whether the
-/// user has already been through it (persisted so it only auto-runs once).
 @Observable
 @MainActor
 final class OnboardingCoordinator {
@@ -92,13 +91,11 @@ final class OnboardingCoordinator {
 
     var isLastStep: Bool { stepIndex >= steps.count - 1 }
 
-    /// Auto-runs the tour the first time the app is launched, then never again.
     func startIfFirstLaunch() {
         guard !UserDefaults.standard.bool(forKey: Self.completedKey) else { return }
         start()
     }
 
-    /// Starts (or restarts) the tour on demand, e.g. from the Help menu.
     func start() {
         stepIndex = 0
         withAnimation(.easeInOut(duration: 0.25)) { isActive = true }
