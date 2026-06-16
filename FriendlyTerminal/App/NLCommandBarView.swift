@@ -122,34 +122,39 @@ struct NLCommandBarView: View {
         }
         .onAppear { isFocused = true }
         .onChange(of: session.isTUIActive) { _, tuiActive in
-            // Yield keyboard focus to the live terminal while a full-screen
-            // program runs; take it back here when it exits.
-            isFocused = !tuiActive
+            if tuiActive && session.isClaudeRunning {
+                isFocused = true
+            } else {
+                isFocused = !tuiActive
+            }
+        }
+        .onChange(of: session.isClaudeRunning) { _, claudeRunning in
+            if claudeRunning { isFocused = true }
         }
         .onChange(of: session.commandBarRequestToken) { _, _ in
-            // A command was picked from the sidebar help — load it for editing.
             inputText = session.commandBarDraft
             mode = .run
             isFocused = true
         }
         .onChange(of: isFocused) { _, focused in
-            // Typing here makes this the active pane (drives sidebar/breadcrumb).
             if focused { workspace.focus(session.id) }
         }
-        .disabled(session.isTUIActive)
-        .opacity(session.isTUIActive ? 0.4 : 1)
+        .disabled(session.isTUIActive && !session.isClaudeRunning)
+        .opacity(session.isTUIActive && !session.isClaudeRunning ? 0.4 : 1)
     }
 
     private var chatInputBar: some View {
         HStack(spacing: 10) {
-            modeToggle
+            if !session.isClaudeRunning {
+                modeToggle
+            }
 
             ZStack(alignment: .leading) {
-                // Hide the placeholder when the field is too narrow (e.g. a
-                // shrunk split pane) so it doesn't show as clipped clutter.
                 if inputText.isEmpty && textFieldWidth > 120 {
-                    Text(mode == .run ? "Run a command…" : "Ask anything — I'll find the right command…")
-                        .font(.system(size: 14, design: mode == .run ? .monospaced : .default))
+                    Text(session.isClaudeRunning
+                         ? "Message Claude, or type 1 / 2 / 3 to pick an option…"
+                         : (mode == .run ? "Run a command…" : "Ask anything — I'll find the right command…"))
+                        .font(.system(size: 14, design: (mode == .run && !session.isClaudeRunning) ? .monospaced : .default))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .allowsHitTesting(false)
@@ -226,7 +231,7 @@ struct NLCommandBarView: View {
                 .frame(width: 30, height: 30)
         } else {
             Button(action: submit) {
-                Image(systemName: mode == .run ? "arrow.up" : "sparkles")
+                Image(systemName: session.isClaudeRunning ? "arrow.up" : (mode == .run ? "arrow.up" : "sparkles"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(inputText.isEmpty ? Color.secondary : Color.white)
                     .frame(width: 30, height: 30)
@@ -247,6 +252,7 @@ struct NLCommandBarView: View {
             "rm -rf", "rm -fr", "rm -r", "sudo rm",
             "mkfs", "dd if=", "fdisk", "shred",
             "> /dev/", "chmod 000",
+            "--dangerously-skip-permissions",
         ]
         return patterns.contains { lower.contains($0) }
             || (lower.hasPrefix("sudo ") && (lower.contains("rm") || lower.contains("dd") || lower.contains("mkfs")))
@@ -255,6 +261,12 @@ struct NLCommandBarView: View {
     private func submit() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+
+        if session.isClaudeRunning {
+            session.sendRaw(text + "\r")
+            inputText = ""
+            return
+        }
 
         switch mode {
         case .run:
