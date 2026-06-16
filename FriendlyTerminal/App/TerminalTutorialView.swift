@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// A plain-language introduction to using the terminal, shown from the help
-/// menu's "Get started" entry. Ends with a button to hide it from the menu
-/// (re-enableable from the settings sheet).
 struct TerminalTutorialView: View {
     var onHide: () -> Void
 
@@ -54,7 +51,6 @@ struct TerminalTutorialView: View {
         let body: String
     }
 
-    // Bodies use Markdown so command names render in `monospace`.
     static let sections: [Section] = [
         Section(
             title: "What is the terminal?",
@@ -87,6 +83,14 @@ struct TerminalTutorialView: View {
         Section(
             title: "A few good habits",
             body: "Nothing happens until you press Return, and commands are case-sensitive. If you're unsure what a command does, ask before running it — especially anything with `rm` (which deletes files) or `sudo` (which runs as administrator)."
+        ),
+        Section(
+            title: "Using Claude Code (AI)",
+            body: "Click the **Claude** button in the toolbar to start an AI coding session. Claude can read your files, fix bugs, write code, and answer questions — no command memorization needed. While Claude is running, the sidebar turns into a control panel with clickable Yes / No buttons and slash commands."
+        ),
+        Section(
+            title: "Claude slash commands",
+            body: "Inside a Claude session, special commands start with `/`. Type `/clear` to start a fresh conversation, `/compact` to save context when chats get long, `/help` to see all options, and `/exit` to leave Claude and return to the normal terminal."
         ),
     ]
 }
