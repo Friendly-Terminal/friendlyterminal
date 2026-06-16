@@ -181,6 +181,11 @@ struct BlockView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
 
+            case .csvTable(let rows):
+                CSVTableView(rows: rows)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+
             case .jsonTree:
                 plainTextOutput
 
@@ -339,6 +344,50 @@ private struct TableOutputView: View {
                 }
             }
         }
+    }
+}
+
+private struct CSVTableView: View {
+    let rows: [[String]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let header = rows.first {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
+                        Text(cell)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .frame(minWidth: 100, alignment: .leading)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+                Divider().padding(.vertical, 2)
+            }
+
+            ForEach(Array(rows.dropFirst().enumerated()), id: \.offset) { index, row in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        Text(cell)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(minWidth: 100, alignment: .leading)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(index.isMultiple(of: 2) ? Color.clear : Color(nsColor: .controlBackgroundColor).opacity(0.4))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+        )
     }
 }
 
