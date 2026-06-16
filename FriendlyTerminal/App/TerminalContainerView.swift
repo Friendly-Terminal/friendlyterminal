@@ -32,7 +32,7 @@ struct TerminalContainerView: View {
                 }
             )
             .opacity(session.isTUIActive ? 1 : 0)
-            .allowsHitTesting(session.isTUIActive)
+            .allowsHitTesting(session.isTUIActive && !session.isClaudeRunning)
 
             if !session.isTUIActive {
                 BlockListView()
@@ -56,8 +56,6 @@ struct TerminalContainerView: View {
             let cwd = session.cwd
             session.pendingCommandText = ""
             session.blockStore.startBlock(command: cmd, cwd: cwd)
-            // A fresh command starts non-interactive; only its own signals count
-            // (ignore any bracketed-paste state left on by the shell's prompt).
             session.altScreenOn = false
             session.bracketedPasteOn = false
             refreshInteractive()
@@ -69,8 +67,6 @@ struct TerminalContainerView: View {
             refreshInteractive()
 
         case .output(let text):
-            // While an interactive program owns the screen, its redraw stream is
-            // cursor noise — don't fold it into the command block's text.
             if !session.isTUIActive {
                 session.blockStore.appendOutput(plain: text, attributed: nil)
             }
@@ -91,9 +87,6 @@ struct TerminalContainerView: View {
         }
     }
 
-    /// The live terminal takes over when a full-screen program is on the
-    /// alternate screen, or when a *running* command turns on bracketed-paste
-    /// mode (raw-input programs like Claude Code that render inline).
     private func refreshInteractive() {
         let commandRunning = session.blockStore.currentBlock != nil
         let interactive = session.altScreenOn || (session.bracketedPasteOn && commandRunning)
