@@ -58,7 +58,10 @@ struct CoachmarkOverlay: View {
                     .background(cardSizeReader)
                     .position(cardPosition(in: geo.size))
             }
-            .ignoresSafeArea()
+            // No `.ignoresSafeArea()` here: the spotlight is positioned from
+            // anchors resolved in this same GeometryReader's coordinate space, so
+            // the overlay must keep that exact origin or the highlight drifts off
+            // its target (e.g. in a windowed, non-fullscreen window).
         }
         .transition(.opacity)
     }
@@ -96,34 +99,46 @@ struct CoachmarkOverlay: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(2)
 
-            HStack(spacing: 8) {
+            // Progress and controls live on separate rows so the buttons always
+            // have room for their labels (no wrapping/truncation) even on a
+            // narrow card.
+            VStack(spacing: 12) {
                 stepDots
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer()
+                HStack(spacing: 12) {
+                    if !isLastStep {
+                        Button("Skip", action: onSkip)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
 
-                if !isLastStep {
-                    Button("Skip", action: onSkip)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+
+                    if stepIndex > 0 {
+                        Button("Back", action: onBack)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+
+                    Button(action: onNext) {
+                        Text(isLastStep ? "Done" : "Next")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.accentColor))
+                    }
+                    .buttonStyle(.plain)
                 }
-
-                if stepIndex > 0 {
-                    Button("Back", action: onBack)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                }
-
-                Button(action: onNext) {
-                    Text(isLastStep ? "Done" : "Next")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.accentColor))
-                }
-                .buttonStyle(.plain)
             }
             .padding(.top, 2)
         }
