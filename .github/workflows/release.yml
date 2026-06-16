@@ -14,10 +14,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15   # ships with Xcode 16 (Swift 6)
+    # macOS 26 image: it ships Xcode 26 with the macOS 26 SDK, which is required
+    # for the FoundationModels (Apple Intelligence) code. Older images (macos-15
+    # / Xcode 16) lack that framework and fail with "no such module".
+    runs-on: macos-26
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
