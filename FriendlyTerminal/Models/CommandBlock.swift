@@ -35,6 +35,7 @@ final class CommandBlock: Identifiable {
 enum RenderKind: Equatable {
     case plainText
     case table([[String]])
+    case csvTable([[String]])
     case jsonTree
     case imageFile(URL)
     case imageData(Data)
