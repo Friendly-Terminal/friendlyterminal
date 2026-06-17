@@ -7,6 +7,7 @@ struct GitPanelView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SessionState.self) private var session
     @State private var panel: GitPanel
+    @State private var showingHelp = false
 
     init(path: String) {
         _panel = State(initialValue: GitPanel(path: path))
@@ -45,6 +46,16 @@ struct GitPanelView: View {
             Spacer()
             if panel.isBusy { ProgressView().scaleEffect(0.6) }
             Button {
+                showingHelp = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+            }
+            .buttonStyle(.plain)
+            .help("New to Git? What these words mean")
+            .popover(isPresented: $showingHelp, arrowEdge: .bottom) {
+                gitHelp
+            }
+            Button {
                 panel.refresh()
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -55,6 +66,41 @@ struct GitPanelView: View {
                 .keyboardShortcut(.cancelAction)
         }
         .padding()
+    }
+
+    private var gitHelp: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Git in a nutshell")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Git saves snapshots of your project so you can track changes and share them. The usual flow is **stage → commit → push**.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 7) {
+                helpTerm("Stage", "Pick which changed files go into your next save (the checkboxes here). “Add” means the same thing.")
+                helpTerm("Commit", "Save a snapshot of the staged files, with a short message describing what changed.")
+                helpTerm("Push", "Upload your commits to GitHub so they're backed up and others can see them.")
+                helpTerm("Pull", "Download the latest commits other people have pushed, into your copy.")
+                helpTerm("Branch", "A separate line of work you can switch to, so changes don't affect the main version until you're ready.")
+                helpTerm("Merge", "Combine the changes from another branch into the one you're on.")
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+
+    private func helpTerm(_ term: String, _ desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(term)
+                .font(.system(size: 11, weight: .semibold))
+            Text(desc)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var notARepo: some View {
