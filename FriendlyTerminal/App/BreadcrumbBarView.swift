@@ -4,6 +4,7 @@ struct BreadcrumbBarView: View {
     @Environment(SessionState.self) private var session
     @Environment(Workspace.self) private var workspace
     @State private var showingDoctorSheet = false
+    @State private var showingGitPanel = false
     private let checker = ClaudeInstallChecker.shared
 
     var body: some View {
@@ -53,20 +54,27 @@ struct BreadcrumbBarView: View {
             if let git = session.gitStatus {
                 Divider().frame(height: 14)
 
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 10, weight: .medium))
-                    Text(git.branch)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                    if git.isDirty {
-                        Text("·\(git.uncommittedCount)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.orange)
+                Button {
+                    showingGitPanel = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 10, weight: .medium))
+                        Text(git.branch)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                        if git.isDirty {
+                            Text("·\(git.uncommittedCount)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.orange)
+                        }
                     }
+                    .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
-                .help(git.isDirty ? "\(git.uncommittedCount) uncommitted file(s)" : "Clean working tree")
+                .buttonStyle(.plain)
+                .help(git.isDirty
+                      ? "\(git.uncommittedCount) uncommitted file(s) — open Source Control"
+                      : "Clean working tree — open Source Control")
             }
 
             claudeButton
@@ -97,6 +105,13 @@ struct BreadcrumbBarView: View {
         .sheet(isPresented: $showingDoctorSheet) {
             ClaudeDoctorView()
                 .environment(session)
+        }
+        .sheet(isPresented: $showingGitPanel) {
+            GitPanelView(path: session.cwd)
+                .environment(session)
+        }
+        .onChange(of: showingGitPanel) { _, open in
+            if !open { session.refreshGitStatus() }
         }
         .onAppear {
             checker.check()
