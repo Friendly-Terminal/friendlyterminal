@@ -11,6 +11,7 @@ struct NLCommandBarView: View {
     @FocusState private var isFocused: Bool
     @State private var dangerousCommandPending: String? = nil
     @State private var isDroppingFile: Bool = false
+    @State private var completions: [String] = []
 
     enum InputMode: String, CaseIterable {
         case run = "Run"
@@ -79,6 +80,10 @@ struct NLCommandBarView: View {
                 .transition(.opacity)
             }
 
+            if !completions.isEmpty {
+                completionHints
+            }
+
             chatInputBar
         }
         .padding(.horizontal, 16)
@@ -135,6 +140,7 @@ struct NLCommandBarView: View {
             inputText = session.commandBarDraft
             mode = .run
             isFocused = true
+            completions = []
         }
         .onChange(of: isFocused) { _, focused in
             if focused { workspace.focus(session.id) }
@@ -166,6 +172,7 @@ struct NLCommandBarView: View {
                     .focused($isFocused)
                     .lineLimit(1...5)
                     .onSubmit { submit() }
+                    .onKeyPress(.tab) { handleTab() }
             }
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
@@ -258,7 +265,113 @@ struct NLCommandBarView: View {
             || (lower.hasPrefix("sudo ") && (lower.contains("rm") || lower.contains("dd") || lower.contains("mkfs")))
     }
 
+    private var completionHints: some View {
+        Text(completions.joined(separator: "   "))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .transition(.opacity)
+    }
+
+    // MARK: - Tab path completion
+
+    /// Completes the path argument under the cursor when Tab is pressed in Run
+    /// mode — directories only for `cd`, files and folders otherwise. A unique
+    /// match is filled in completely (folders gain a trailing slash); multiple
+    /// matches extend to their common prefix and list the candidates as a hint.
+    private func handleTab() -> KeyPress.Result {
+        guard mode == .run, !session.isClaudeRunning else { return .ignored }
+
+        // Only complete an argument: there must be a space after the command.
+        guard let lastSpace = inputText.range(of: " ", options: .backwards) else { return .ignored }
+        let head = String(inputText[..<lastSpace.upperBound])
+        var token = String(inputText[lastSpace.upperBound...])
+
+        let firstWord = inputText.components(separatedBy: " ").first ?? ""
+        let dirsOnly = (firstWord == "cd")
+
+        // Drop a leading opening quote; we re-quote the whole token if needed.
+        if token.hasPrefix("'") || token.hasPrefix("\"") { token = String(token.dropFirst()) }
+
+        // Split into the directory part (with trailing slash) and the partial name.
+        let dirPart: String
+        let partial: String
+        if let slash = token.range(of: "/", options: .backwards) {
+            dirPart = String(token[..<slash.upperBound])
+            partial = String(token[slash.upperBound...])
+        } else {
+            dirPart = ""
+            partial = token
+        }
+
+        let matches = matchingEntries(in: resolveBaseDir(dirPart), partial: partial, dirsOnly: dirsOnly)
+        guard !matches.isEmpty else {
+            completions = []
+            return .handled
+        }
+
+        let newToken: String
+        if matches.count == 1 {
+            newToken = dirPart + matches[0].name + (matches[0].isDir ? "/" : "")
+            completions = []
+        } else {
+            let common = longestCommonPrefix(matches.map(\.name))
+            newToken = dirPart + (common.count > partial.count ? common : partial)
+            completions = matches.map { $0.isDir ? $0.name + "/" : $0.name }
+        }
+
+        let needsQuote = newToken.contains(" ")
+        let rendered = needsQuote
+            ? "'\(newToken.replacingOccurrences(of: "'", with: "'\\''"))'"
+            : newToken
+        inputText = head + rendered
+        return .handled
+    }
+
+    private func resolveBaseDir(_ dirPart: String) -> URL {
+        if dirPart.isEmpty { return URL(fileURLWithPath: session.cwd, isDirectory: true) }
+        if dirPart.hasPrefix("/") { return URL(fileURLWithPath: dirPart, isDirectory: true) }
+        if dirPart.hasPrefix("~") {
+            return URL(fileURLWithPath: (dirPart as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        return URL(fileURLWithPath: session.cwd, isDirectory: true).appendingPathComponent(dirPart)
+    }
+
+    private func matchingEntries(in base: URL, partial: String, dirsOnly: Bool) -> [(name: String, isDir: Bool)] {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: base, includingPropertiesForKeys: [.isDirectoryKey], options: []
+        ) else { return [] }
+
+        let wantHidden = partial.hasPrefix(".")
+        let lowerPartial = partial.lowercased()
+        var result: [(name: String, isDir: Bool)] = []
+        for url in urls {
+            let name = url.lastPathComponent
+            if !wantHidden && name.hasPrefix(".") { continue }
+            guard name.lowercased().hasPrefix(lowerPartial) else { continue }
+            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if dirsOnly && !isDir { continue }
+            result.append((name, isDir))
+        }
+        return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func longestCommonPrefix(_ strings: [String]) -> String {
+        guard var prefix = strings.first else { return "" }
+        for s in strings.dropFirst() {
+            while !prefix.isEmpty && !s.hasPrefix(prefix) {
+                prefix = String(prefix.dropLast())
+            }
+            if prefix.isEmpty { break }
+        }
+        return prefix
+    }
+
     private func submit() {
+        completions = []
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
