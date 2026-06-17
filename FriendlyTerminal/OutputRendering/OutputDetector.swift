@@ -13,6 +13,37 @@ enum OutputRenderingPipeline {
 
         guard !text.isEmpty else { return }
 
+        // Command-specific "list" detectors run first so their output isn't
+        // mistaken for a generic table/file-tree.
+        if let kind = LsListingDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = GitBranchDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = GitStatusDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = GitLogOnelineDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = GitTagDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = BrewListDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+        if let kind = HistoryDetector.detect(output: text, command: cmd, cwd: cwd) {
+            block.renderKind = kind
+            return
+        }
+
         if let kind = CatImageDetector.detect(output: text, command: cmd, cwd: cwd) {
             block.renderKind = kind
             return

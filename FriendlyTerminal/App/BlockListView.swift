@@ -192,6 +192,13 @@ struct BlockView: View {
             case .fileTree:
                 plainTextOutput
 
+            case .commandList(let items):
+                CommandListOutputView(items: items) { item in
+                    session.prefillCommand(item.followUp)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+
             case .imageFile(let url):
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFit()

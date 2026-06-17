@@ -34,7 +34,7 @@ struct OnboardingStep: Identifiable {
             targetID: Coachmark.modeToggle,
             symbol: "sparkles",
             title: "Or just ask in plain English",
-            message: "Switch this to "Ask AI" and describe what you want — FriendlyTerminal suggests the command, and you decide whether to run it."
+            message: "Switch this to \"Ask AI\" and describe what you want — FriendlyTerminal suggests the command, and you decide whether to run it."
         ),
         OnboardingStep(
             targetID: Coachmark.fileSidebar,

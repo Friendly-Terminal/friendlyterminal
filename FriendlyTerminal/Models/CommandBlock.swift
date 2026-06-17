@@ -41,6 +41,20 @@ enum RenderKind: Equatable {
     case imageData(Data)
     case fileTree
     case errorHighlighted
+    /// Output rendered as clickable items; tapping one drops its `followUp`
+    /// command into the command bar (e.g. an `ls` entry → `cd folder`).
+    case commandList([CommandListItem])
+}
+
+/// One clickable element of a "list" command's output (a folder from `ls`, a
+/// branch from `git branch`, …) plus the command to suggest when it's tapped.
+struct CommandListItem: Identifiable, Equatable {
+    var id: String { label }
+    let label: String
+    let detail: String?
+    let systemImage: String
+    /// Command dropped into the command bar when this item is clicked.
+    let followUp: String
 }
 
 enum AIBlockState: Equatable {

@@ -157,7 +157,7 @@ struct CommandHelpView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 20))
                     .foregroundStyle(.tertiary)
-                Text("No commands match "\(searchText)".")
+                Text("No commands match \"\(searchText)\".")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
