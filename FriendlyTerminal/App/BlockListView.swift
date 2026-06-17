@@ -192,8 +192,8 @@ struct BlockView: View {
             case .fileTree:
                 plainTextOutput
 
-            case .commandList(let items):
-                CommandListOutputView(items: items) { item in
+            case .commandList(let hint, let items):
+                CommandListOutputView(hint: hint, items: items) { item in
                     session.prefillCommand(item.followUp)
                 }
                 .padding(.horizontal, 16)

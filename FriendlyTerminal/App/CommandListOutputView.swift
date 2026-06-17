@@ -4,6 +4,7 @@ import SwiftUI
 /// clickable chips. Tapping a chip drops its follow-up command into the command
 /// bar — clicking a folder from `ls` fills in `cd folder`, and so on.
 struct CommandListOutputView: View {
+    let hint: String
     let items: [CommandListItem]
     let onTap: (CommandListItem) -> Void
 
@@ -13,6 +14,11 @@ struct CommandListOutputView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            Text(hint)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                 ForEach(items) { item in
                     Button { onTap(item) } label: {

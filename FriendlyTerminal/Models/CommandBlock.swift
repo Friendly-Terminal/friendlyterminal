@@ -42,8 +42,9 @@ enum RenderKind: Equatable {
     case fileTree
     case errorHighlighted
     /// Output rendered as clickable items; tapping one drops its `followUp`
-    /// command into the command bar (e.g. an `ls` entry → `cd folder`).
-    case commandList([CommandListItem])
+    /// command into the command bar (e.g. an `ls` entry → `cd folder`). `hint`
+    /// describes, in plain language, what clicking an item does.
+    case commandList(hint: String, items: [CommandListItem])
 }
 
 /// One clickable element of a "list" command's output (a folder from `ls`, a

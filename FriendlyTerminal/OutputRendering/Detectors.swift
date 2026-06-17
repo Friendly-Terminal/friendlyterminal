@@ -220,7 +220,10 @@ enum LsListingDetector: OutputDetector {
             if lhsDir != rhsDir { return lhsDir }
             return lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
         }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a folder to fill in “cd” (go into it) or a file to fill in “open” — then press Return.",
+            items: items
+        )
     }
 }
 
@@ -262,7 +265,10 @@ enum GitBranchDetector: OutputDetector {
             ))
         }
         guard !items.isEmpty else { return nil }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a branch to fill in “git checkout” — then press Return to switch to it.",
+            items: items
+        )
     }
 }
 
@@ -311,7 +317,10 @@ enum GitStatusDetector: OutputDetector {
             ))
         }
         guard !items.isEmpty else { return nil }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a file to fill in “git add” for it — then press Return to stage it.",
+            items: items
+        )
     }
 }
 
@@ -336,7 +345,10 @@ enum GitLogOnelineDetector: OutputDetector {
             ))
         }
         guard !items.isEmpty else { return nil }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a commit to fill in “git show” — then press Return to view it.",
+            items: items
+        )
     }
 }
 
@@ -360,7 +372,10 @@ enum GitTagDetector: OutputDetector {
             ))
         }
         guard !items.isEmpty else { return nil }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a tag to fill in “git checkout” — then press Return to check it out.",
+            items: items
+        )
     }
 }
 
@@ -391,7 +406,10 @@ enum BrewListDetector: OutputDetector {
             }
         }
         guard !items.isEmpty else { return nil }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a package to fill in “brew info” — then press Return to see its details.",
+            items: items
+        )
     }
 }
 
@@ -420,7 +438,10 @@ enum HistoryDetector: OutputDetector {
         }
         guard !items.isEmpty else { return nil }
         if items.count > 200 { items = Array(items.suffix(200)) }
-        return .commandList(items)
+        return .commandList(
+            hint: "Click a past command to load it into the command bar — then press Return to run it again.",
+            items: items
+        )
     }
 }
 
