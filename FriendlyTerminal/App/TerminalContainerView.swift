@@ -62,6 +62,7 @@ struct TerminalContainerView: View {
 
         case .commandEnd(let exitCode):
             session.blockStore.finishBlock(exitCode: exitCode)
+            session.attachUndoPlan(exitCode: exitCode)
             session.altScreenOn = false
             session.bracketedPasteOn = false
             refreshInteractive()

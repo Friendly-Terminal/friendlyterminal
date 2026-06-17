@@ -78,6 +78,11 @@ struct BlockView: View {
                     aiActionsBar
                         .transition(.opacity)
                 }
+
+                if block.undoPlan != nil {
+                    undoBar
+                        .transition(.opacity)
+                }
             }
 
             Divider()
@@ -221,6 +226,38 @@ struct BlockView: View {
                     plainTextOutput
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var undoBar: some View {
+        if let plan = block.undoPlan {
+            HStack(spacing: 6) {
+                if block.isUndone {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("Undone")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        session.performUndo(block)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.backward")
+                            Text(plan.label)
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Reverse this command")
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 5)
         }
     }
 

@@ -21,6 +21,11 @@ final class CommandBlock: Identifiable {
 
     var renderKind: RenderKind = .plainText
 
+    /// How to undo this command, if it has a safe inverse. Set when the command
+    /// finishes successfully. `isUndone` flips once the user taps Undo.
+    var undoPlan: UndoPlan?
+    var isUndone: Bool = false
+
     var aiState: AIBlockState = .idle
 
     init(command: String, cwd: String, sessionID: UUID) {

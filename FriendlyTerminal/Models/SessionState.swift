@@ -126,9 +126,96 @@ final class SessionState: Identifiable {
         sendToShell?("cd '\(escaped)'\n")
     }
 
+    /// The undo plan computed for the command currently being sent, awaiting the
+    /// command's successful completion before it's attached to the block.
+    @ObservationIgnored private var pendingUndo: (command: String, plan: UndoPlan)?
+
     func executeCommand(_ command: String) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Make deletions undoable: route a safe `rm` to the Trash instead of
+        // permanently deleting, and record how to restore it.
+        if interceptDeletion(trimmed) { return }
+
+        // Capture an undo plan up front (some inverses depend on what existed
+        // before the command ran); it's attached once the command succeeds.
+        pendingUndo = UndoPlanner.plan(command: trimmed, cwd: cwd).map { (trimmed, $0) }
+
         let cmd = command.hasSuffix("\n") ? command : command + "\n"
         sendToShell?(cmd)
+    }
+
+    /// Called after a command finishes. On success, attaches its undo plan.
+    func attachUndoPlan(exitCode: Int32) {
+        defer { pendingUndo = nil }
+        guard exitCode == 0, let block = blockStore.lastFinishedBlock else { return }
+        if let pending = pendingUndo, pending.command == block.command {
+            block.undoPlan = pending.plan
+        } else {
+            // Commands not sent through the command bar (e.g. a folder click)
+            // still get the inverses that don't need before-state.
+            block.undoPlan = UndoPlanner.plan(command: block.command, cwd: block.cwd, allowPreState: false)
+        }
+    }
+
+    func performUndo(_ block: CommandBlock) {
+        guard let plan = block.undoPlan, !block.isUndone else { return }
+        let fm = FileManager.default
+        for action in plan.actions {
+            switch action {
+            case .shell(let cmd):
+                sendToShell?(cmd + "\n")
+            case .trash(let path):
+                try? fm.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
+            case .restore(let trashed, let original):
+                try? fm.moveItem(atPath: trashed, toPath: original)
+            }
+        }
+        block.isUndone = true
+        refreshFileItems()
+        refreshGitStatus()
+    }
+
+    /// If `command` is a safe `rm`, move its targets to the Trash, show a block
+    /// describing it, and record an undo that restores them. Returns true if it
+    /// handled the deletion (so the real `rm` should not run).
+    private func interceptDeletion(_ command: String) -> Bool {
+        guard let targets = RmInterceptor.safeTargets(command: command, cwd: cwd) else { return false }
+
+        var restores: [UndoAction] = []
+        var moved: [String] = []
+        for url in targets {
+            var trashedURL: NSURL?
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: &trashedURL)
+                moved.append(url.lastPathComponent)
+                if let trashedPath = trashedURL?.path {
+                    restores.append(.restore(trashed: trashedPath, original: url.path))
+                }
+            } catch {
+                // Leave anything we couldn't trash for the report below.
+            }
+        }
+
+        blockStore.startBlock(command: command, cwd: cwd)
+        if moved.isEmpty {
+            blockStore.appendOutput(plain: "Couldn't move those items to the Trash.\n", attributed: nil)
+            blockStore.finishBlock(exitCode: 1)
+        } else {
+            blockStore.appendOutput(
+                plain: "Moved \(moved.count) item\(moved.count == 1 ? "" : "s") to the Trash: \(moved.joined(separator: ", "))\n",
+                attributed: nil
+            )
+            blockStore.finishBlock(exitCode: 0)
+            if let block = blockStore.lastFinishedBlock, !restores.isEmpty {
+                block.undoPlan = UndoPlan(
+                    label: "Undo delete (restore \(restores.count) item\(restores.count == 1 ? "" : "s"))",
+                    actions: restores
+                )
+            }
+        }
+        refreshFileItems()
+        return true
     }
 
     func refreshFileItems() {
