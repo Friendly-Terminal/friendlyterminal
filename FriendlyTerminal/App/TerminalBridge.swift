@@ -26,6 +26,7 @@ struct TerminalBridge: NSViewRepresentable {
 
         let env = buildEnvironment()
         tv.startProcess(executable: shell, args: [], environment: env, execName: nil)
+        tv.getTerminal().setCursorStyle(.blinkBar)
 
         onReady? { [weak tv] text in
             tv?.send(txt: text)
