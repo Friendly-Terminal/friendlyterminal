@@ -14,9 +14,25 @@ struct BlockListView: View {
                     }
 
                     if session.blockStore.currentBlock != nil {
-                        RunningIndicatorView()
-                            .id("running-indicator")
-                            .padding(.horizontal, 12)
+                        HStack(spacing: 8) {
+                            RunningIndicatorView()
+                            Button {
+                                session.sendRaw("\u{03}") // Ctrl-C
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "stop.fill")
+                                        .font(.system(size: 9))
+                                    Text("Stop")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Stop this command (sends Ctrl-C)")
+                            Spacer()
+                        }
+                        .id("running-indicator")
+                        .padding(.horizontal, 12)
                     }
 
                     Color.clear.frame(height: 16)
