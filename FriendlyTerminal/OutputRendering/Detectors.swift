@@ -147,14 +147,10 @@ enum TableDetector: OutputDetector {
     }
 }
 
-/// Wraps a name in single quotes (escaping any embedded quotes) so it's safe to
-/// paste into the command bar even when it contains spaces or special characters.
 private func shellQuote(_ name: String) -> String {
     "'" + name.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
-/// Picks an SF Symbol for a file based on its extension (folders are handled
-/// separately). Mirrors the sidebar's iconography.
 private func fileIcon(for name: String) -> String {
     switch (name as NSString).pathExtension.lowercased() {
     case "swift": return "swift"
@@ -169,11 +165,6 @@ private func fileIcon(for name: String) -> String {
     }
 }
 
-/// Turns a plain `ls` of the current folder into clickable entries: folders
-/// suggest `cd folder`, files suggest `open file`. Only handles listings of the
-/// current directory (no path argument, not recursive); anything else falls
-/// through to normal text rendering. Uses the live filesystem for accurate
-/// folder-vs-file detection rather than parsing ls's columns.
 enum LsListingDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let parts = command.trimmingCharacters(in: .whitespaces)
@@ -181,12 +172,10 @@ enum LsListingDetector: OutputDetector {
             .filter { !$0.isEmpty }
         guard parts.first == "ls" else { return nil }
 
-        // Every extra argument must be an option flag — a path operand means the
-        // listing isn't of `cwd`, so we can't map names to clickable actions.
         let operands = parts.dropFirst()
         for arg in operands {
             guard arg.hasPrefix("-") else { return nil }
-            if arg.contains("R") { return nil } // recursive listing — skip
+            if arg.contains("R") { return nil }
         }
         let showHidden = operands.contains { $0.contains("a") || $0.contains("A") }
 
@@ -227,8 +216,6 @@ enum LsListingDetector: OutputDetector {
     }
 }
 
-/// Turns `git branch` into clickable branches: tapping one suggests
-/// `git checkout branch`. Skips management forms (`-d`, `-m`, naming a branch).
 enum GitBranchDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let trimmed = command.trimmingCharacters(in: .whitespaces)
@@ -236,8 +223,6 @@ enum GitBranchDetector: OutputDetector {
 
         let rest = trimmed.dropFirst("git branch".count).trimmingCharacters(in: .whitespaces)
         if !rest.isEmpty {
-            // Allow only listing-style flags (e.g. -a, -vv); bail on a branch
-            // name operand or destructive flags.
             for arg in rest.components(separatedBy: .whitespaces) where !arg.isEmpty {
                 guard arg.hasPrefix("-") else { return nil }
                 if arg.contains("d") || arg.contains("D") || arg.contains("m") { return nil }
@@ -254,7 +239,6 @@ enum GitBranchDetector: OutputDetector {
                 line = String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
             }
             let name = line.components(separatedBy: .whitespaces).first ?? line
-            // Skip detached-HEAD lines and tracking arrows.
             if name.isEmpty || name.hasPrefix("(") || name.contains("->") { continue }
 
             items.append(CommandListItem(
@@ -272,9 +256,6 @@ enum GitBranchDetector: OutputDetector {
     }
 }
 
-/// Turns `git status` into clickable changed files: tapping one suggests
-/// `git add file` to stage it. Handles the default (verbose) output; the short
-/// / porcelain forms fall through to text.
 enum GitStatusDetector: OutputDetector {
     private static let statusKeywords = [
         "modified:", "new file:", "deleted:", "renamed:", "copied:",
@@ -285,7 +266,6 @@ enum GitStatusDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let trimmed = command.trimmingCharacters(in: .whitespaces)
         guard trimmed == "git status" || trimmed.hasPrefix("git status ") else { return nil }
-        // Short/porcelain output has a different shape — leave it as text.
         if trimmed.contains("-s") || trimmed.contains("--short") || trimmed.contains("--porcelain") {
             return nil
         }
@@ -300,11 +280,11 @@ enum GitStatusDetector: OutputDetector {
             if let keyword = statusKeywords.first(where: { line.hasPrefix($0) }) {
                 path = String(line.dropFirst(keyword.count)).trimmingCharacters(in: .whitespaces)
             } else if rawLine.hasPrefix("\t") && !line.hasPrefix("(") {
-                path = line // untracked file (indented, no status keyword)
+                path = line
             }
 
             guard var file = path, !file.isEmpty else { continue }
-            if let arrow = file.range(of: "-> ") { // "renamed: old -> new"
+            if let arrow = file.range(of: "-> ") {
                 file = String(file[arrow.upperBound...]).trimmingCharacters(in: .whitespaces)
             }
             guard seen.insert(file).inserted else { continue }
@@ -324,8 +304,6 @@ enum GitStatusDetector: OutputDetector {
     }
 }
 
-/// Turns `git log --oneline` into clickable commits: tapping one suggests
-/// `git show <hash>`.
 enum GitLogOnelineDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let trimmed = command.trimmingCharacters(in: .whitespaces)
@@ -352,7 +330,6 @@ enum GitLogOnelineDetector: OutputDetector {
     }
 }
 
-/// Turns `git tag` into clickable tags: tapping one suggests `git checkout tag`.
 enum GitTagDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let trimmed = command.trimmingCharacters(in: .whitespaces)
@@ -379,7 +356,6 @@ enum GitTagDetector: OutputDetector {
     }
 }
 
-/// Turns `brew list` into clickable packages: tapping one suggests `brew info`.
 enum BrewListDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let parts = command.trimmingCharacters(in: .whitespaces)
@@ -387,7 +363,6 @@ enum BrewListDetector: OutputDetector {
             .filter { !$0.isEmpty }
         guard parts.first == "brew",
               let sub = parts.dropFirst().first, (sub == "list" || sub == "ls") else { return nil }
-        // "--versions" prints "name version" pairs — a different shape.
         if parts.contains("--versions") { return nil }
 
         var items: [CommandListItem] = []
@@ -413,8 +388,6 @@ enum BrewListDetector: OutputDetector {
     }
 }
 
-/// Turns `history` into clickable past commands: tapping one drops that command
-/// back into the command bar, ready to run or tweak.
 enum HistoryDetector: OutputDetector {
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         let trimmed = command.trimmingCharacters(in: .whitespaces)
@@ -424,7 +397,6 @@ enum HistoryDetector: OutputDetector {
         for rawLine in output.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty else { continue }
-            // Lines look like "  123  the command".
             let pieces = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
             guard pieces.count == 2, Int(pieces[0]) != nil else { continue }
             let past = pieces[1].trimmingCharacters(in: .whitespaces)
@@ -450,14 +422,36 @@ enum FileTreeDetector: OutputDetector {
 
     static func detect(output: String, command: String, cwd: String) -> RenderKind? {
         if output.contains("├──") || output.contains("└──") || output.contains("│") {
-            return .fileTree
+            return nil
         }
         let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
         guard lines.count >= 3 else { return nil }
         let pathLines = lines.filter { $0.hasPrefix("./") || ($0.hasPrefix("/") && $0.contains("/")) }
-        if Double(pathLines.count) / Double(lines.count) > 0.8 {
-            return .fileTree
+        guard Double(pathLines.count) / Double(lines.count) > 0.8 else { return nil }
+
+        let baseURL = URL(fileURLWithPath: cwd, isDirectory: true)
+        var items: [CommandListItem] = []
+        for rawLine in pathLines {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+            let url: URL
+            if trimmed.hasPrefix("/") {
+                url = URL(fileURLWithPath: trimmed)
+            } else {
+                url = baseURL.appendingPathComponent(String(trimmed.dropFirst(2)))
+            }
+            let name = url.lastPathComponent
+            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            items.append(CommandListItem(
+                label: trimmed,
+                detail: isDir ? "Open folder" : "Open file",
+                systemImage: isDir ? "folder.fill" : fileIcon(for: name),
+                followUp: isDir ? "cd \(shellQuote(trimmed))" : "open \(shellQuote(trimmed))"
+            ))
         }
-        return nil
+        guard !items.isEmpty else { return nil }
+        return .commandList(
+            hint: "Click a path to open it in the command bar — then press Return.",
+            items: items
+        )
     }
 }
