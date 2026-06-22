@@ -17,7 +17,7 @@ struct BlockListView: View {
                         HStack(spacing: 8) {
                             RunningIndicatorView()
                             Button {
-                                session.sendRaw("\u{03}") // Ctrl-C
+                                session.sendRaw("\u{03}")
                             } label: {
                                 HStack(spacing: 3) {
                                     Image(systemName: "stop.fill")
@@ -208,10 +208,9 @@ struct BlockView: View {
                     .padding(.vertical, 6)
 
             case .jsonTree:
-                plainTextOutput
-
-            case .fileTree:
-                plainTextOutput
+                JSONTreeView(text: block.plainText)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
 
             case .commandList(let hint, let items):
                 CommandListOutputView(hint: hint, items: items) { item in
@@ -278,13 +277,29 @@ struct BlockView: View {
     }
 
     private var plainTextOutput: some View {
-        Text(block.plainText)
+        Text(linkifiedText(block.plainText))
             .font(.system(size: 12, design: .monospaced))
             .foregroundStyle(.primary)
             .textSelection(.enabled)
             .padding(.horizontal, 28)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func linkifiedText(_ text: String) -> AttributedString {
+        var attr = AttributedString(text)
+        guard text.contains("http"),
+              let detector = try? NSDataDetector(
+                types: NSTextCheckingResult.CheckingType.link.rawValue
+              ) else { return attr }
+        let nsRange = NSRange(text.startIndex..., in: text)
+        for match in detector.matches(in: text, range: nsRange) {
+            guard let url = match.url,
+                  let stringRange = Range(match.range, in: text),
+                  let attrRange = Range(stringRange, in: attr) else { continue }
+            attr[attrRange].link = url
+        }
+        return attr
     }
 
     @ViewBuilder
@@ -392,8 +407,25 @@ private struct TableOutputView: View {
     let rows: [[String]]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+        VStack(alignment: .leading, spacing: 0) {
+            if let header = rows.first {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
+                        Text(cell)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .frame(minWidth: 80, alignment: .leading)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+                Divider().padding(.vertical, 2)
+            }
+
+            ForEach(Array(rows.dropFirst().enumerated()), id: \.offset) { index, row in
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                         Text(cell)
@@ -402,8 +434,20 @@ private struct TableOutputView: View {
                             .lineLimit(1)
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    index.isMultiple(of: 2)
+                        ? Color.clear
+                        : Color(nsColor: .controlBackgroundColor).opacity(0.4)
+                )
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+        )
     }
 }
 
@@ -517,6 +561,162 @@ struct FriendlyButtonStyle: ButtonStyle {
                     .fill(color == .secondary ? Color(nsColor: .controlBackgroundColor) : color)
             )
             .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+private struct JSONTreeView: View {
+    let text: String
+
+    private var root: JSONNode? {
+        guard let data = text.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        return JSONNode(value: obj)
+    }
+
+    var body: some View {
+        if let root {
+            ScrollView {
+                JSONNodeView(node: root, key: nil)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+            .frame(maxHeight: 420)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+            )
+        } else {
+            Text(text)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct JSONPair: Identifiable {
+    let key: String
+    let value: JSONNode
+    var id: String { key }
+}
+
+private indirect enum JSONNode {
+    case object([JSONPair])
+    case array([JSONNode])
+    case string(String)
+    case number(Double, isInteger: Bool)
+    case bool(Bool)
+    case null
+
+    init(value: Any) {
+        if let dict = value as? [String: Any] {
+            self = .object(
+                dict.map { JSONPair(key: $0.key, value: JSONNode(value: $0.value)) }
+                    .sorted { $0.key < $1.key }
+            )
+        } else if let arr = value as? [Any] {
+            self = .array(arr.map { JSONNode(value: $0) })
+        } else if let s = value as? String {
+            self = .string(s)
+        } else if let n = value as? NSNumber {
+            let type = String(cString: n.objCType)
+            if type == "c" {
+                self = .bool(n.boolValue)
+            } else {
+                let d = n.doubleValue
+                self = .number(d, isInteger: d == d.rounded() && abs(d) < 1e15)
+            }
+        } else {
+            self = .null
+        }
+    }
+}
+
+private struct JSONNodeView: View {
+    let node: JSONNode
+    let key: String?
+    @State private var expanded: Bool = true
+
+    var body: some View {
+        switch node {
+        case .object(let pairs):
+            DisclosureGroup(isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(pairs.prefix(200)) { pair in
+                        JSONNodeView(node: pair.value, key: pair.key)
+                    }
+                    if pairs.count > 200 {
+                        Text("… \(pairs.count - 200) more")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 2)
+                    }
+                }
+                .padding(.leading, 14)
+            } label: {
+                containerLabel(suffix: "{ \(pairs.count) }")
+            }
+
+        case .array(let items):
+            DisclosureGroup(isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(Array(items.prefix(200).enumerated()), id: \.offset) { i, item in
+                        JSONNodeView(node: item, key: "[\(i)]")
+                    }
+                    if items.count > 200 {
+                        Text("… \(items.count - 200) more")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 2)
+                    }
+                }
+                .padding(.leading, 14)
+            } label: {
+                containerLabel(suffix: "[ \(items.count) ]")
+            }
+
+        case .string(let s):
+            leafRow(value: "\"\(s)\"", color: .green)
+
+        case .number(let d, let isInt):
+            leafRow(value: isInt ? "\(Int(d))" : String(format: "%g", d), color: .blue)
+
+        case .bool(let b):
+            leafRow(value: b ? "true" : "false", color: .orange)
+
+        case .null:
+            leafRow(value: "null", color: .secondary)
+        }
+    }
+
+    private func containerLabel(suffix: String) -> some View {
+        HStack(spacing: 4) {
+            if let key {
+                Text(key.hasPrefix("[") ? "\(key):" : "\"\(key)\":")
+                    .foregroundStyle(key.hasPrefix("[") ? .secondary : .primary)
+            }
+            Text(suffix)
+                .foregroundStyle(.secondary)
+        }
+        .font(.system(size: 12, design: .monospaced))
+    }
+
+    private func leafRow(value: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            if let key {
+                Text(key.hasPrefix("[") ? "\(key):" : "\"\(key)\":")
+                    .foregroundStyle(key.hasPrefix("[") ? .secondary : .primary)
+            }
+            Text(value)
+                .foregroundStyle(color)
+                .lineLimit(3)
+        }
+        .font(.system(size: 12, design: .monospaced))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 1)
     }
 }
 
