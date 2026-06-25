@@ -8,7 +8,7 @@ internal static class NativeMethods
     public const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
     public const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFO
     {
         public int cb;
@@ -20,7 +20,7 @@ internal static class NativeMethods
         public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFOEX
     {
         public STARTUPINFO StartupInfo;

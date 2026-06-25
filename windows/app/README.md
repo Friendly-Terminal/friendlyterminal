@@ -19,8 +19,21 @@ None of the "friendly" features are here yet — those come from
 
 ## Build (on Windows)
 
-Prerequisites: Visual Studio 2022 with the **.NET Desktop** and **Windows App SDK**
-workloads, or the .NET 8 SDK plus the Windows App SDK.
+Prerequisites: the **.NET 8 SDK**, plus the Visual Studio **MSIX packaging**
+MSBuild tasks. The bare .NET SDK can compile the C#/XAML (it produces
+`FriendlyTerminal.App.dll`) but the Windows App SDK's resource/layout pipeline
+(`MrtCore.PriGen.targets`) loads `Microsoft.Build.AppxPackage.dll` /
+`Microsoft.Build.Packaging.Pri.Tasks.dll`, which ship **only** with Visual Studio
+or its build-tools MSIX/UWP component — not with the standalone .NET SDK. Without
+them the build fails at `RemovePayloadDuplicates` / `ExpandPriContent` with
+`MSB4062` even though the code itself is fine.
+
+So build with one of:
+
+- **Visual Studio 2022** (Desktop + Windows App SDK workloads): open
+  `FriendlyTerminal.App.csproj` and press F5, or use the VS Developer prompt's
+  `msbuild`.
+- **VS Build Tools** with the MSIX packaging component installed, then:
 
 ```powershell
 cd windows\app\FriendlyTerminal.App
@@ -28,7 +41,9 @@ dotnet build -r win-x64
 dotnet run -r win-x64
 ```
 
-Or open `FriendlyTerminal.App.csproj` in Visual Studio and press F5.
+The project is configured unpackaged and self-contained
+(`WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`) so the produced
+exe runs without separately installing the Windows App Runtime.
 
 ## Files
 
@@ -39,9 +54,15 @@ Or open `FriendlyTerminal.App.csproj` in Visual Studio and press F5.
 - `Assets/terminal.html` — xterm.js front end (loads from CDN for now; vendor it
   for offline use later).
 
-## Not yet verified
+## Status
 
-This was scaffolded on macOS and has **not been compiled on Windows**. Expect to
-fix small things on the first build — package versions and the ConPTY P/Invoke
-signatures are the most likely spots. Once it builds, wiring the PowerShell
-profile in `windows/shell/` gives the per-command block markers.
+Compiled on Windows with the .NET 8 SDK: NuGet restore succeeds and the C#/XAML
+build produces `FriendlyTerminal.App.dll`. The `STARTUPINFO`/`STARTUPINFOEX`
+P/Invoke structs were given `CharSet.Unicode` to match the Unicode `CreateProcess`.
+The only step that does not complete on a machine without the Visual Studio MSIX
+packaging tasks is the final Windows App SDK resource/layout pass (see Build
+above) — a toolchain gap, not a code issue.
+
+Not exercised at runtime yet: actually launching the window and confirming bytes
+flow between xterm.js and ConPTY, and wiring the PowerShell profile in
+`windows/shell/` for the per-command block markers.
