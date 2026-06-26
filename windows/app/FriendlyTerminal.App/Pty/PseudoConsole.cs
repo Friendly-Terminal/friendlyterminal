@@ -6,6 +6,7 @@ namespace FriendlyTerminal.App.Pty;
 internal sealed class PseudoConsole : IDisposable
 {
     public IntPtr Handle { get; }
+    private bool _disposed;
 
     private PseudoConsole(IntPtr handle) => Handle = handle;
 
@@ -20,7 +21,12 @@ internal sealed class PseudoConsole : IDisposable
     public void Resize(int width, int height) =>
         ResizePseudoConsole(Handle, new COORD { X = (short)width, Y = (short)height });
 
-    public void Dispose() => ClosePseudoConsole(Handle);
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        ClosePseudoConsole(Handle);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct COORD { public short X; public short Y; }

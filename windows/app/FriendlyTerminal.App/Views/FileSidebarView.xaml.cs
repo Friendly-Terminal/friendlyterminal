@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using FriendlyTerminal.App.Models;
 using FriendlyTerminal.Core.Platform;
@@ -21,11 +22,17 @@ public sealed partial class FileSidebarView : UserControl
         set
         {
             if (_session is not null)
+            {
                 _session.Files.CollectionChanged -= FilesChanged;
+                _session.PropertyChanged -= SessionPropertyChanged;
+            }
             _session = value;
             if (_session is null) return;
             FileList.ItemsSource = _session.Files;
             _session.Files.CollectionChanged += FilesChanged;
+            _session.PropertyChanged += SessionPropertyChanged;
+            UpdateHeader();
+            UpdateToggle();
             UpdateFooter();
         }
     }
@@ -37,10 +44,29 @@ public sealed partial class FileSidebarView : UserControl
 
     private void FilesChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateFooter();
 
+    private void SessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionState.CurrentDirectory))
+            UpdateHeader();
+        else if (e.PropertyName == nameof(SessionState.ShowHidden))
+            UpdateToggle();
+    }
+
+    private void UpdateHeader()
+    {
+        PathText.Text = _session?.CurrentDirectory ?? "";
+    }
+
+    private void UpdateToggle()
+    {
+        HiddenToggle.IsChecked = _session?.ShowHidden ?? false;
+    }
+
     private void UpdateFooter()
     {
         var n = _session?.Files.Count ?? 0;
         FooterText.Text = $"{n} item" + (n == 1 ? "" : "s");
+        EmptyState.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnToggleHidden(object sender, RoutedEventArgs e)

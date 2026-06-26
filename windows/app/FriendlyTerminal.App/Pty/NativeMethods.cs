@@ -51,4 +51,7 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 }

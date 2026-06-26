@@ -30,10 +30,13 @@
       term.write(bytes);
     };
 
+    const reportSize = () => window.chrome.webview.postMessage('r:' + term.cols + 'x' + term.rows);
     term.onData(d => window.chrome.webview.postMessage('i:' + d));
+    term.onResize(() => reportSize());
     window.addEventListener('resize', () => fit.fit());
 
     window.chrome.webview.postMessage('ready');
+    reportSize();
   </script>
 </body>
 </html>

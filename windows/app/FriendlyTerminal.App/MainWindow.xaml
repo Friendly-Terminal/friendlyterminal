@@ -19,6 +19,6 @@
             <views:SidebarColumnView x:Name="Sidebar" />
         </Border>
 
-        <controls:WebView2 x:Name="Terminal" Grid.Column="1" />
+        <controls:WebView2 x:Name="Terminal" Grid.Column="1" AutomationProperties.Name="Terminal" AutomationProperties.HelpText="PowerShell session" />
     </Grid>
 </Window>

@@ -22,6 +22,10 @@ public sealed class OscParser
     private bool _escPending;
     private readonly List<byte> _oscBody = new();
 
+    // Cap the buffer so a malformed/unterminated OSC sequence (e.g. from cat-ing a binary
+    // file, or the shell dying mid-sequence) can't grow it without bound.
+    private const int MaxOscBody = 65536;
+
     public event Action<string>? WorkingDirectoryChanged;
 
     public void Feed(byte[] buffer, int count)
@@ -49,6 +53,13 @@ public sealed class OscParser
                 {
                     // Stray ESC inside an OSC; keep the following byte, drop the ESC.
                     _oscBody.Add(b);
+                    if (_oscBody.Count > MaxOscBody)
+                    {
+                        // Give up on this runaway sequence and resync to the ground state.
+                        _inOsc = false;
+                        _escPending = false;
+                        _oscBody.Clear();
+                    }
                 }
             }
             else if (b == OscStart)
@@ -77,6 +88,13 @@ public sealed class OscParser
             else
             {
                 _oscBody.Add(b);
+                if (_oscBody.Count > MaxOscBody)
+                {
+                    // Give up on this runaway sequence and resync to the ground state.
+                    _inOsc = false;
+                    _escPending = false;
+                    _oscBody.Clear();
+                }
             }
         }
         // Ground bytes are ignored; the caller forwards the raw stream to the terminal.

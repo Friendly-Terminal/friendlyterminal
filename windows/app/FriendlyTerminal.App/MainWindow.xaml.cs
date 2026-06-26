@@ -3,6 +3,7 @@ using FriendlyTerminal.App.Pty;
 using FriendlyTerminal.App.Views;
 using FriendlyTerminal.Core.ShellIntegration;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 
 namespace FriendlyTerminal.App;
@@ -12,6 +13,8 @@ public sealed partial class MainWindow : Window
     private readonly SessionState _session = new();
     private readonly OscParser _osc = new();
     private PtyConnection? _pty;
+    // Set on close so the PTY reader thread stops forwarding output into a tearing-down WebView2.
+    private int _closing;
 
     public MainWindow()
     {
@@ -25,7 +28,17 @@ public sealed partial class MainWindow : Window
         _session.SetCurrentDirectory(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
         Terminal.Loaded += OnTerminalLoaded;
-        Closed += (_, _) => _pty?.Dispose();
+        Closed += OnClosed;
+
+        try { SystemBackdrop = new MicaBackdrop(); }
+        catch { /* Mica isn't available on this OS build; fall back to the default backdrop. */ }
+    }
+
+    private void OnClosed(object sender, WindowEventArgs args)
+    {
+        Volatile.Write(ref _closing, 1);
+        _pty?.Dispose();
+        Terminal.Close();
     }
 
     private async void OnTerminalLoaded(object sender, RoutedEventArgs e)
@@ -46,6 +59,12 @@ public sealed partial class MainWindow : Window
             StartShell();
         else if (message.StartsWith("i:"))
             _pty?.WriteInput(message[2..]);
+        else if (message.StartsWith("r:") && message.Length > 2)
+        {
+            var parts = message[2..].Split('x');
+            if (parts.Length == 2 && int.TryParse(parts[0], out var cols) && int.TryParse(parts[1], out var rows) && cols > 0 && rows > 0)
+                _pty?.Resize(cols, rows);
+        }
     }
 
     private void StartShell()
@@ -67,10 +86,18 @@ public sealed partial class MainWindow : Window
         // Feed the parser a copy of the stream for cwd tracking; raw bytes still go to xterm.
         _osc.Feed(data, data.Length);
 
+        // Raised on the PTY reader thread; stop forwarding once the window is closing.
+        if (Volatile.Read(ref _closing) != 0) return;
+
         var b64 = Convert.ToBase64String(data);
-        DispatcherQueue.TryEnqueue(async () =>
+        DispatcherQueue.TryEnqueue(() =>
         {
-            await Terminal.CoreWebView2.ExecuteScriptAsync($"window.ptyWrite('{b64}')");
+            if (Volatile.Read(ref _closing) != 0) return;
+            if (Terminal.CoreWebView2 is null) return;
+            // Fire-and-forget is safe here: a discarded Task won't crash the process the way
+            // an async-void queued handler would if the script call fails mid-teardown.
+            try { _ = Terminal.CoreWebView2.ExecuteScriptAsync($"window.ptyWrite('{b64}')"); }
+            catch { /* racing teardown; losing this chunk during shutdown is harmless */ }
         });
     }
 

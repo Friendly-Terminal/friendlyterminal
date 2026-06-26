@@ -15,6 +15,7 @@ internal sealed class PtyConnection : IDisposable
     private SafeFileHandle? _outputRead;
     private FileStream? _writer;
     private Thread? _reader;
+    private IntPtr _processHandle;
     private volatile bool _running;
 
     public event Action<byte[]>? OutputReceived;
@@ -29,21 +30,44 @@ internal sealed class PtyConnection : IDisposable
     public void Start()
     {
         CreatePipe(out var inputRead, out var inputWrite);
-        CreatePipe(out var outputRead, out var outputWrite);
+        SafeFileHandle? outputRead = null;
+        SafeFileHandle? outputWrite = null;
+        try
+        {
+            CreatePipe(out outputRead, out outputWrite);
 
-        _console = PseudoConsole.Create(inputRead, outputWrite, _width, _height);
-        _inputWrite = inputWrite;
-        _outputRead = outputRead;
+            _console = PseudoConsole.Create(inputRead, outputWrite, _width, _height);
 
-        inputRead.Dispose();
-        outputWrite.Dispose();
+            // PseudoConsole duplicated the handles; keep the parent ends, close the child ends.
+            _inputWrite = inputWrite;
+            _outputRead = outputRead;
+            // Drop the local refs so the finally (failure-only cleanup) leaves them alive
+            // for the running reader/writer on the success path.
+            inputWrite = null;
+            outputRead = null;
 
-        StartProcess(_console.Handle, _command);
+            StartProcess(_console.Handle, _command);
 
-        _writer = new FileStream(_inputWrite, FileAccess.Write);
-        _running = true;
-        _reader = new Thread(ReadLoop) { IsBackground = true };
-        _reader.Start();
+            _writer = new FileStream(_inputWrite, FileAccess.Write);
+            _running = true;
+            _reader = new Thread(ReadLoop) { IsBackground = true };
+            _reader.Start();
+        }
+        catch
+        {
+            // Reclaim whatever was created so handles never leak on a partial start.
+            Dispose();
+            throw;
+        }
+        finally
+        {
+            // The child ends are never needed past PseudoConsole.Create.
+            inputRead.Dispose();
+            outputWrite?.Dispose();
+            // Parent ends transferred to fields on success; on failure the catch path owns them.
+            inputWrite?.Dispose();
+            outputRead?.Dispose();
+        }
     }
 
     public void WriteInput(string text)
@@ -78,33 +102,46 @@ internal sealed class PtyConnection : IDisposable
             throw new InvalidOperationException("CreatePipe failed");
     }
 
-    private static void StartProcess(IntPtr console, string command)
+    private void StartProcess(IntPtr console, string command)
     {
         var attrSize = IntPtr.Zero;
         NativeMethods.InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref attrSize);
         var attrList = Marshal.AllocHGlobal(attrSize);
+        try
+        {
+            if (!NativeMethods.InitializeProcThreadAttributeList(attrList, 1, 0, ref attrSize))
+                throw new InvalidOperationException("InitializeProcThreadAttributeList failed");
 
-        if (!NativeMethods.InitializeProcThreadAttributeList(attrList, 1, 0, ref attrSize))
-            throw new InvalidOperationException("InitializeProcThreadAttributeList failed");
+            try
+            {
+                if (!NativeMethods.UpdateProcThreadAttribute(attrList, 0,
+                        (IntPtr)NativeMethods.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+                        console, (IntPtr)IntPtr.Size, IntPtr.Zero, IntPtr.Zero))
+                    throw new InvalidOperationException("UpdateProcThreadAttribute failed");
 
-        if (!NativeMethods.UpdateProcThreadAttribute(attrList, 0,
-                (IntPtr)NativeMethods.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-                console, (IntPtr)IntPtr.Size, IntPtr.Zero, IntPtr.Zero))
-            throw new InvalidOperationException("UpdateProcThreadAttribute failed");
+                var startup = new NativeMethods.STARTUPINFOEX();
+                startup.StartupInfo.cb = Marshal.SizeOf<NativeMethods.STARTUPINFOEX>();
+                startup.lpAttributeList = attrList;
 
-        var startup = new NativeMethods.STARTUPINFOEX();
-        startup.StartupInfo.cb = Marshal.SizeOf<NativeMethods.STARTUPINFOEX>();
-        startup.lpAttributeList = attrList;
+                if (!NativeMethods.CreateProcess(null, command, IntPtr.Zero, IntPtr.Zero, false,
+                        NativeMethods.EXTENDED_STARTUPINFO_PRESENT, IntPtr.Zero, null,
+                        ref startup, out var proc))
+                    throw new InvalidOperationException("CreateProcess failed");
 
-        if (!NativeMethods.CreateProcess(null, command, IntPtr.Zero, IntPtr.Zero, false,
-                NativeMethods.EXTENDED_STARTUPINFO_PRESENT, IntPtr.Zero, null,
-                ref startup, out var proc))
-            throw new InvalidOperationException("CreateProcess failed");
-
-        NativeMethods.CloseHandle(proc.hThread);
-        NativeMethods.CloseHandle(proc.hProcess);
-        NativeMethods.DeleteProcThreadAttributeList(attrList);
-        Marshal.FreeHGlobal(attrList);
+                NativeMethods.CloseHandle(proc.hThread);
+                // Retain the process handle so Dispose can wait for the child to exit
+                // (otherwise powershell.exe can outlive the window).
+                _processHandle = proc.hProcess;
+            }
+            finally
+            {
+                NativeMethods.DeleteProcThreadAttributeList(attrList);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(attrList);
+        }
     }
 
     public void Dispose()
@@ -113,6 +150,14 @@ internal sealed class PtyConnection : IDisposable
         _writer?.Dispose();
         _outputRead?.Dispose();
         _inputWrite?.Dispose();
-        _console?.Dispose();
+        _console?.Dispose(); // tearing down the pseudoconsole signals the child to exit
+
+        if (_processHandle != IntPtr.Zero)
+        {
+            // Give the child a moment to exit once its console is gone, then release the handle.
+            NativeMethods.WaitForSingleObject(_processHandle, 2000);
+            NativeMethods.CloseHandle(_processHandle);
+            _processHandle = IntPtr.Zero;
+        }
     }
 }

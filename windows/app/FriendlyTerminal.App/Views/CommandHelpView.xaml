@@ -15,13 +15,13 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="BackButton" Click="OnBack" Padding="6" Visibility="Collapsed" ToolTipService.ToolTip="Back">
+            <Button x:Name="BackButton" Click="OnBack" Width="32" Height="32" Padding="0" Visibility="Collapsed" ToolTipService.ToolTip="Back" AutomationProperties.Name="Back to categories">
                 <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="11" Glyph="&#xE76B;" />
             </Button>
             <TextBlock x:Name="TitleText" Grid.Column="1" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="Help with commands" />
         </Grid>
 
-        <TextBox x:Name="SearchBox" Grid.Row="1" Margin="12,0,12,8" PlaceholderText="Search commands" TextChanged="OnSearchChanged" />
+        <TextBox x:Name="SearchBox" Grid.Row="1" Margin="12,0,12,8" PlaceholderText="Search commands" AutomationProperties.Name="Search commands" TextChanged="OnSearchChanged" />
 
         <GridView
             x:Name="CategoryGrid"
@@ -77,7 +77,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <FontIcon VerticalAlignment="Center" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="10" Foreground="Orange" Glyph="&#xE7BA;" Visibility="{Binding DangerVisibility}" />
+                                <FontIcon VerticalAlignment="Center" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xE7BA;" Visibility="{Binding DangerVisibility}" />
                                 <TextBlock FontFamily="Consolas" FontSize="11" Text="{Binding Command}" TextWrapping="Wrap" />
                             </StackPanel>
                             <TextBlock FontSize="10" Opacity="0.7" Text="{Binding Detail}" TextWrapping="Wrap" />
