@@ -37,11 +37,19 @@ public class UndoPlannerTests
     }
 
     [Fact]
-    public void Brew_install_uninstalls()
+    public void Winget_install_uninstalls()
     {
-        var plan = Planner().Plan("brew install wget", Cwd);
+        var plan = Planner().Plan("winget install wget", Cwd);
         var action = Assert.IsType<UndoAction.Shell>(Assert.Single(plan!.Actions));
-        Assert.Equal("brew uninstall wget", action.Command);
+        Assert.Equal("winget uninstall wget", action.Command);
+    }
+
+    [Fact]
+    public void Export_removes_env_var()
+    {
+        var plan = Planner().Plan("export FOO=bar", Cwd);
+        var action = Assert.IsType<UndoAction.Shell>(Assert.Single(plan!.Actions));
+        Assert.Equal("Remove-Item Env:\\FOO", action.Command);
     }
 
     [Fact]

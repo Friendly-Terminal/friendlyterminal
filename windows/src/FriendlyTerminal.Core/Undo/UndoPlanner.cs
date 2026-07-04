@@ -115,7 +115,7 @@ public sealed class UndoPlanner
                 var eq = args[0].IndexOf('=');
                 if (eq <= 0) return null;
                 var name = args[0][..eq];
-                return One($"Undo: unset {name}", new UndoAction.Shell($"unset {name}"));
+                return One($"Undo: unset {name}", new UndoAction.Shell($"Remove-Item Env:\\{name}"));
             }
 
             case "zip":
@@ -154,13 +154,13 @@ public sealed class UndoPlanner
                 return null;
             }
 
-            case "brew":
+            case "winget":
             {
                 if (args.Length == 0 || args[0] != "install") return null;
                 var pkgs = args.Skip(1).Where(a => !a.StartsWith('-')).ToArray();
                 if (pkgs.Length == 0) return null;
                 return One($"Undo: uninstall {string.Join(", ", pkgs)}",
-                    new UndoAction.Shell($"brew uninstall {string.Join(' ', pkgs)}"));
+                    new UndoAction.Shell($"winget uninstall {string.Join(' ', pkgs)}"));
             }
 
             default:
