@@ -9,6 +9,7 @@ public sealed partial class CommandHelpView : UserControl
     private SessionState? _session;
     private CommandCategory? _selected;
     private string _search = "";
+    private readonly HelpSettings _settings = HelpSettings.Instance;
 
     // Category icon-key -> Segoe Fluent Icons code point (verified against Microsoft Learn).
     private static readonly Dictionary<string, int> CategoryGlyphs = new()
@@ -85,14 +86,59 @@ public sealed partial class CommandHelpView : UserControl
         _session.SendToShell?.Invoke(row.Command);
     }
 
+    private async void OnSettings(object sender, RoutedEventArgs e)
+    {
+        var list = new StackPanel { Spacing = 2 };
+        foreach (var category in CommandCatalog.All)
+        {
+            var toggle = new ToggleSwitch
+            {
+                Header = $"{category.Name}  ({category.Commands.Count})",
+                IsOn = _settings.IsEnabled(category.Id),
+                Tag = category.Id,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            };
+            toggle.Toggled += (s, _) =>
+            {
+                var t = (ToggleSwitch)s;
+                _settings.SetEnabled((string)t.Tag, t.IsOn);
+            };
+            list.Children.Add(toggle);
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Command groups",
+            Content = new ScrollViewer
+            {
+                Content = list,
+                MaxHeight = 420,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            },
+            CloseButtonText = "Done",
+            XamlRoot = XamlRoot,
+        };
+
+        await dialog.ShowAsync();
+
+        // A category the user turned off should not stay open behind the dialog.
+        if (_selected is not null && !_settings.IsEnabled(_selected.Id))
+            _selected = null;
+        Render();
+    }
+
     private void Render()
     {
         var drilled = _selected is not null;
         var searching = !drilled && !string.IsNullOrWhiteSpace(_search);
+        var atRoot = !drilled && !searching;
 
         SearchBox.Visibility = drilled ? Visibility.Collapsed : Visibility.Visible;
         BackButton.Visibility = (drilled || searching) ? Visibility.Visible : Visibility.Collapsed;
+        SettingsButton.Visibility = atRoot ? Visibility.Visible : Visibility.Collapsed;
         TitleText.Text = drilled ? _selected!.Name : (searching ? "Search" : "Help with commands");
+
+        EmptyState.Visibility = Visibility.Collapsed;
 
         if (drilled)
         {
@@ -112,12 +158,14 @@ public sealed partial class CommandHelpView : UserControl
         }
         else
         {
-            CategoryGrid.Visibility = Visibility.Visible;
-            CommandList.Visibility = Visibility.Collapsed;
-            CategoryGrid.ItemsSource = CommandCatalog.All
-                .Where(c => CommandCatalog.DefaultEnabledIds.Contains(c.Id))
+            var tiles = CommandCatalog.All
+                .Where(c => _settings.IsEnabled(c.Id))
                 .Select(c => new CategoryTile(c.Name, GlyphOf(c.Icon), c))
                 .ToList();
+            CommandList.Visibility = Visibility.Collapsed;
+            CategoryGrid.Visibility = tiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            EmptyState.Visibility = tiles.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+            CategoryGrid.ItemsSource = tiles;
         }
     }
 }
