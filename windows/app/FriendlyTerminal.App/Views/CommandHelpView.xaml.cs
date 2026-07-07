@@ -8,6 +8,7 @@ public sealed partial class CommandHelpView : UserControl
 {
     private SessionState? _session;
     private CommandCategory? _selected;
+    private bool _showingTutorial;
     private string _search = "";
     private readonly HelpSettings _settings = HelpSettings.Instance;
 
@@ -63,32 +64,58 @@ public sealed partial class CommandHelpView : UserControl
     {
         _search = "";
         _selected = null;
+        _showingTutorial = false;
         SearchBox.Text = "";
         Render();
     }
 
     private void OnCategoryClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is CategoryTile tile)
+        if (e.ClickedItem is not CategoryTile tile) return;
+        if (tile.Category is null)
+        {
+            _showingTutorial = true;
+            if (TutorialHost.Content is null)
+            {
+                var tutorial = new TerminalTutorialView();
+                tutorial.HideRequested += () =>
+                {
+                    _settings.SetTutorialVisible(false);
+                    _showingTutorial = false;
+                    Render();
+                };
+                TutorialHost.Content = tutorial;
+            }
+        }
+        else
         {
             _selected = tile.Category;
-            Render();
         }
+        Render();
     }
 
     private void OnCommandClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not CommandRow row || _session is null) return;
 
-        // Prefill the prompt line without running it, matching the macOS command-bar
-        // behavior: the text lands on the PowerShell prompt for editing before Enter.
-        // Dangerous commands are flagged with a warning icon in the list, not run.
-        _session.SendToShell?.Invoke(row.Command);
+        // Load the command into the command bar for editing, matching the macOS
+        // behavior. Dangerous commands are flagged with a warning icon, not run.
+        _session.PrefillCommand(row.Command);
     }
 
     private async void OnSettings(object sender, RoutedEventArgs e)
     {
         var list = new StackPanel { Spacing = 2 };
+
+        var tutorialToggle = new ToggleSwitch
+        {
+            Header = "Get started  (beginner tutorial)",
+            IsOn = _settings.TutorialVisible,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        };
+        tutorialToggle.Toggled += (s, _) => _settings.SetTutorialVisible(((ToggleSwitch)s).IsOn);
+        list.Children.Add(tutorialToggle);
+
         foreach (var category in CommandCatalog.All)
         {
             var toggle = new ToggleSwitch
@@ -124,23 +151,33 @@ public sealed partial class CommandHelpView : UserControl
         // A category the user turned off should not stay open behind the dialog.
         if (_selected is not null && !_settings.IsEnabled(_selected.Id))
             _selected = null;
+        if (_showingTutorial && !_settings.TutorialVisible)
+            _showingTutorial = false;
         Render();
     }
 
     private void Render()
     {
-        var drilled = _selected is not null;
+        var drilled = _selected is not null || _showingTutorial;
         var searching = !drilled && !string.IsNullOrWhiteSpace(_search);
         var atRoot = !drilled && !searching;
 
         SearchBox.Visibility = drilled ? Visibility.Collapsed : Visibility.Visible;
         BackButton.Visibility = (drilled || searching) ? Visibility.Visible : Visibility.Collapsed;
         SettingsButton.Visibility = atRoot ? Visibility.Visible : Visibility.Collapsed;
-        TitleText.Text = drilled ? _selected!.Name : (searching ? "Search" : "Help with commands");
+        TitleText.Text = _showingTutorial
+            ? "Get started"
+            : (_selected is not null ? _selected.Name : (searching ? "Search" : "Help with commands"));
 
         EmptyState.Visibility = Visibility.Collapsed;
+        TutorialHost.Visibility = _showingTutorial ? Visibility.Visible : Visibility.Collapsed;
 
-        if (drilled)
+        if (_showingTutorial)
+        {
+            CategoryGrid.Visibility = Visibility.Collapsed;
+            CommandList.Visibility = Visibility.Collapsed;
+        }
+        else if (drilled)
         {
             CategoryGrid.Visibility = Visibility.Collapsed;
             CommandList.Visibility = Visibility.Visible;
@@ -158,10 +195,12 @@ public sealed partial class CommandHelpView : UserControl
         }
         else
         {
-            var tiles = CommandCatalog.All
+            var tiles = new List<CategoryTile>();
+            if (_settings.TutorialVisible)
+                tiles.Add(new CategoryTile("Get started", char.ConvertFromUtf32(0xE7BE), null));
+            tiles.AddRange(CommandCatalog.All
                 .Where(c => _settings.IsEnabled(c.Id))
-                .Select(c => new CategoryTile(c.Name, GlyphOf(c.Icon), c))
-                .ToList();
+                .Select(c => new CategoryTile(c.Name, GlyphOf(c.Icon), c)));
             CommandList.Visibility = Visibility.Collapsed;
             CategoryGrid.Visibility = tiles.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             EmptyState.Visibility = tiles.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -170,7 +209,7 @@ public sealed partial class CommandHelpView : UserControl
     }
 }
 
-internal sealed record CategoryTile(string Name, string Glyph, CommandCategory Category);
+internal sealed record CategoryTile(string Name, string Glyph, CommandCategory? Category);
 
 internal sealed record CommandRow(string Command, string Detail, string? Badge, bool IsDangerous)
 {

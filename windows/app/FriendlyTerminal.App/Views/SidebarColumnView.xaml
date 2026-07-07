@@ -13,6 +13,18 @@
 
         <views:FileSidebarView x:Name="FilesView" Grid.Row="0" />
         <Border Grid.Row="1" Height="1" HorizontalAlignment="Stretch" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-        <views:CommandHelpView x:Name="HelpView" Grid.Row="2" />
+
+        <Grid Grid.Row="2">
+            <views:ClaudeControlBarView x:Name="ClaudeBar" Visibility="Collapsed" />
+            <views:InteractiveHintView x:Name="HintView" Visibility="Collapsed" />
+            <Grid x:Name="HelpStack">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <views:ProjectCommandsView x:Name="ProjectView" />
+                <views:CommandHelpView x:Name="HelpView" Grid.Row="1" />
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

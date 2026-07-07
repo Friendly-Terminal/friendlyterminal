@@ -94,6 +94,8 @@
             </ListView.ItemTemplate>
         </ListView>
 
+        <ContentPresenter x:Name="TutorialHost" Grid.Row="2" Visibility="Collapsed" />
+
         <StackPanel x:Name="EmptyState" Grid.Row="2" Padding="20" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Visibility="Collapsed">
             <FontIcon HorizontalAlignment="Center" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="20" Opacity="0.5" Glyph="&#xE7C3;" />
             <TextBlock HorizontalAlignment="Center" FontSize="11" Opacity="0.7" Text="No command groups shown." TextAlignment="Center" />

@@ -13,6 +13,9 @@ public sealed class HelpSettings
 {
     public static HelpSettings Instance { get; } = new();
 
+    /// <summary>Sentinel stored alongside category ids so the legacy string[] format keeps working.</summary>
+    private const string TutorialHiddenId = "!tutorial-hidden";
+
     private readonly string _path;
     private HashSet<string> _enabled;
 
@@ -23,6 +26,14 @@ public sealed class HelpSettings
             "FriendlyTerminal");
         _path = Path.Combine(dir, "help-settings.json");
         _enabled = Load() ?? new HashSet<string>(CommandCatalog.DefaultEnabledIds);
+    }
+
+    public bool TutorialVisible => !_enabled.Contains(TutorialHiddenId);
+
+    public void SetTutorialVisible(bool visible)
+    {
+        if (visible ? _enabled.Remove(TutorialHiddenId) : _enabled.Add(TutorialHiddenId))
+            Save();
     }
 
     public bool IsEnabled(string id) => _enabled.Contains(id);

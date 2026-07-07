@@ -1,0 +1,29 @@
+<UserControl
+    x:Class="FriendlyTerminal.App.Views.TerminalTutorialView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="12" Spacing="14">
+            <StackPanel x:Name="SectionsPanel" Spacing="14" />
+
+            <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+            <Button
+                x:Name="HideButton"
+                HorizontalAlignment="Stretch"
+                Click="OnHide">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="11" Glyph="&#xE73E;" />
+                    <TextBlock FontSize="11" FontWeight="Medium" Text="Got it — hide this" />
+                </StackPanel>
+            </Button>
+
+            <TextBlock
+                FontSize="10"
+                Opacity="0.5"
+                Text="You can bring this back anytime from the gear button above."
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

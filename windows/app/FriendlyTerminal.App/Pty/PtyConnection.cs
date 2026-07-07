@@ -20,6 +20,10 @@ internal sealed class PtyConnection : IDisposable
 
     public event Action<byte[]>? OutputReceived;
 
+    /// <summary>Raised on the reader thread when the shell process ends on its own
+    /// (not when the connection is disposed).</summary>
+    public event Action? Exited;
+
     public PtyConnection(string command, int width, int height)
     {
         _command = command;
@@ -94,6 +98,8 @@ internal sealed class PtyConnection : IDisposable
             Array.Copy(buffer, chunk, read);
             OutputReceived?.Invoke(chunk);
         }
+        if (_running)
+            Exited?.Invoke();
     }
 
     private static void CreatePipe(out SafeFileHandle read, out SafeFileHandle write)
