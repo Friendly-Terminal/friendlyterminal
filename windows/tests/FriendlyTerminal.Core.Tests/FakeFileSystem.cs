@@ -18,6 +18,25 @@ public sealed class FakeFileSystem : IFileSystem
     public IReadOnlyList<string> ListDirectory(string path) =>
         _files.Concat(_dirs).Where(p => p.StartsWith(path + "/")).ToList();
 
+    public IReadOnlyList<DirEntry> ListEntries(string path)
+    {
+        var prefix = path.TrimEnd('/', '\\');
+        DirEntry? EntryFor(string full, bool isDir)
+        {
+            var norm = full.Replace('\\', '/');
+            var normPrefix = prefix.Replace('\\', '/');
+            if (!norm.StartsWith(normPrefix + "/")) return null;
+            var rest = norm[(normPrefix.Length + 1)..];
+            if (rest.Length == 0 || rest.Contains('/')) return null; // not an immediate child
+            return new DirEntry(rest, isDir, rest.StartsWith('.'));
+        }
+        return _files.Select(f => EntryFor(f, false))
+            .Concat(_dirs.Select(d => EntryFor(d, true)))
+            .Where(e => e is not null)
+            .Select(e => e!)
+            .ToList();
+    }
+
     public void MoveToTrash(string path) { }
     public void RestoreFromTrash(string trashedPath, string originalPath) { }
 }

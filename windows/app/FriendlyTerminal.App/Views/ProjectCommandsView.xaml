@@ -1,0 +1,16 @@
+<UserControl
+    x:Class="FriendlyTerminal.App.Views.ProjectCommandsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel x:Name="Root" Visibility="Collapsed">
+        <TextBlock
+            Padding="14,10,14,4"
+            FontSize="10"
+            FontWeight="SemiBold"
+            Opacity="0.6"
+            Text="THIS PROJECT" />
+        <StackPanel x:Name="GroupsPanel" Padding="10,0,10,10" Spacing="8" />
+        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+    </StackPanel>
+</UserControl>

@@ -12,8 +12,16 @@ $global:__ftOriginalPrompt = $function:prompt
 $global:__ftRan = $false
 
 function global:prompt {
-    $code = $LASTEXITCODE
-    if ($global:__ftRan) { __ftOsc "133;D;$code" }
+    # $? must be read first: it reflects the user's command, and any statement in
+    # this function would overwrite it. Cmdlet failures don't set $LASTEXITCODE,
+    # so a false $? with no native exit code is reported as exit 1.
+    $ok = $?
+    $code = $global:LASTEXITCODE
+    if ($global:__ftRan) {
+        $exit = if ($ok) { 0 } elseif ($code) { $code } else { 1 }
+        __ftOsc "133;D;$exit"
+        $global:LASTEXITCODE = 0
+    }
     __ftOsc "133;A"
     __ftOsc "9;9;$((Get-Location).Path)"
     $text = & $global:__ftOriginalPrompt
@@ -24,6 +32,14 @@ function global:prompt {
 
 if (Get-Module -ListAvailable PSReadLine) {
     Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
+        # Report the command line (base64, OSC 633;E) so the app can label the block.
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($line) {
+            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($line))
+            __ftOsc "633;E;$b64"
+        }
         __ftOsc "133;C"
         $global:__ftRan = $true
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()

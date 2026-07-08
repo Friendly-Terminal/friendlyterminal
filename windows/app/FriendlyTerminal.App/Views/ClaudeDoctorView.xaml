@@ -1,0 +1,68 @@
+<UserControl
+    x:Class="FriendlyTerminal.App.Views.ClaudeDoctorView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="420">
+
+    <StackPanel Spacing="10">
+        <StackPanel x:Name="RowsPanel" Spacing="2" />
+
+        <StackPanel
+            x:Name="InstallSection"
+            Padding="0,4,0,0"
+            Spacing="6"
+            Visibility="Collapsed">
+            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Install Claude Code" />
+            <TextBlock
+                FontSize="11"
+                Opacity="0.7"
+                Text="Run this command in the terminal:" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Padding="10,6"
+                    Background="{ThemeResource ControlFillColorSecondary}"
+                    CornerRadius="6">
+                    <TextBlock
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Text="npm install -g @anthropic-ai/claude-code"
+                        TextTrimming="CharacterEllipsis" />
+                </Border>
+                <Button
+                    Grid.Column="1"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    AutomationProperties.Name="Copy install command"
+                    Click="OnCopyInstall"
+                    ToolTipService.ToolTip="Copy install command">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE8C8;" />
+                </Button>
+                <Button
+                    Grid.Column="2"
+                    Click="OnRunInstall"
+                    Content="Run"
+                    Style="{StaticResource AccentButtonStyle}"
+                    ToolTipService.ToolTip="Run this in the terminal now" />
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <HyperlinkButton
+                Padding="0"
+                Click="OnRecheck"
+                Content="Re-check"
+                FontSize="12" />
+            <ProgressRing
+                x:Name="CheckingRing"
+                Width="16"
+                Height="16"
+                IsActive="False" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

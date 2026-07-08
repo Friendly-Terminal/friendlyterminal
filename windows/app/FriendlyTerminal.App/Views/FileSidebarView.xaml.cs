@@ -111,6 +111,12 @@ public sealed partial class FileSidebarView : UserControl
         var copy = new MenuFlyoutItem { Text = "Copy path" };
         copy.Click += (_, _) => CopyText(entry.Path);
 
+        var copyName = new MenuFlyoutItem { Text = "Copy name" };
+        copyName.Click += (_, _) => CopyText(entry.Name);
+
+        var rename = new MenuFlyoutItem { Text = "Rename…" };
+        rename.Click += async (_, _) => await RenameAsync(entry);
+
         var trash = new MenuFlyoutItem { Text = "Move to Recycle Bin" };
         trash.Click += (_, _) =>
         {
@@ -128,9 +134,40 @@ public sealed partial class FileSidebarView : UserControl
         flyout.Items.Add(open);
         flyout.Items.Add(reveal);
         flyout.Items.Add(copy);
+        flyout.Items.Add(copyName);
         flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(rename);
         flyout.Items.Add(trash);
         return flyout;
+    }
+
+    private async Task RenameAsync(FileEntry entry)
+    {
+        var box = new TextBox { Text = entry.Name, SelectionStart = entry.Name.Length };
+        var dialog = new ContentDialog
+        {
+            Title = $"Rename \"{entry.Name}\"",
+            Content = box,
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var newName = box.Text.Trim();
+        if (newName.Length == 0 || newName == entry.Name) return;
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(entry.Path)!;
+            var dest = System.IO.Path.Combine(dir, newName);
+            if (entry.IsDirectory)
+                System.IO.Directory.Move(entry.Path, dest);
+            else
+                System.IO.File.Move(entry.Path, dest);
+            _session?.RefreshFiles();
+        }
+        catch { }
     }
 
     private static void OpenWithDefault(string path)

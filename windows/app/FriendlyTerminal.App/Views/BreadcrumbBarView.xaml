@@ -1,0 +1,154 @@
+<UserControl
+    x:Class="FriendlyTerminal.App.Views.BreadcrumbBarView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="8,4" ColumnSpacing="6" Background="Transparent">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Button
+            x:Name="SidebarToggle"
+            Width="32"
+            Height="32"
+            Padding="0"
+            AutomationProperties.Name="Toggle sidebar"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnToggleSidebar"
+            ToolTipService.ToolTip="Toggle sidebar (Ctrl+B)">
+            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="14" Glyph="&#xE8A0;" />
+        </Button>
+
+        <ScrollViewer
+            x:Name="CrumbScroller"
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            HorizontalScrollBarVisibility="Hidden"
+            HorizontalScrollMode="Enabled"
+            VerticalScrollMode="Disabled">
+            <StackPanel x:Name="CrumbsPanel" Orientation="Horizontal" Spacing="2" />
+        </ScrollViewer>
+
+        <Button
+            x:Name="GitChip"
+            Grid.Column="2"
+            Height="26"
+            Padding="8,0"
+            AutomationProperties.Name="Source control"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnGitChip"
+            Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="11" Glyph="&#xE8AB;" />
+                <TextBlock x:Name="GitBranchText" FontSize="11" FontWeight="Medium" />
+                <TextBlock
+                    x:Name="GitDirtyText"
+                    FontSize="11"
+                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                    Visibility="Collapsed" />
+            </StackPanel>
+        </Button>
+
+        <Grid Grid.Column="3">
+            <DropDownButton
+                x:Name="ClaudeButton"
+                Height="26"
+                Padding="8,0"
+                AutomationProperties.Name="Claude Code"
+                ToolTipService.ToolTip="Start a Claude Code session"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <FontIcon
+                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                        FontSize="12"
+                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                        Glyph="&#xE99A;" />
+                    <TextBlock
+                        FontSize="12"
+                        FontWeight="Medium"
+                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                        Text="Claude" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuFlyoutItem Click="OnClaudeNew" Text="New Chat" />
+                        <MenuFlyoutItem Click="OnClaudeContinue" Text="Resume Last Chat" />
+                        <MenuFlyoutItem Click="OnClaudeResume" Text="Choose Session…" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="OnClaudeDoctor" Text="Setup &amp; Doctor…" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <Button
+                x:Name="ClaudeSetupButton"
+                Height="26"
+                Padding="8,0"
+                AutomationProperties.Name="Set up Claude Code"
+                Click="OnClaudeDoctor"
+                ToolTipService.ToolTip="Claude Code is not installed — click to set it up"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE99A;" />
+                    <TextBlock FontSize="12" FontWeight="Medium" Text="Setup Claude" />
+                </StackPanel>
+            </Button>
+            <ProgressRing
+                x:Name="ClaudeChecking"
+                Width="16"
+                Height="16"
+                IsActive="False"
+                Visibility="Collapsed" />
+        </Grid>
+
+        <Button
+            x:Name="ProcessButton"
+            Grid.Column="4"
+            Width="32"
+            Height="32"
+            Padding="0"
+            AutomationProperties.Name="What's running on this machine"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnProcessPanel"
+            ToolTipService.ToolTip="What's running on this machine">
+            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="13" Glyph="&#xE945;" />
+        </Button>
+
+        <Button
+            x:Name="RefreshButton"
+            Grid.Column="5"
+            Width="32"
+            Height="32"
+            Padding="0"
+            AutomationProperties.Name="Refresh"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnRefresh"
+            ToolTipService.ToolTip="Refresh">
+            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="13" Glyph="&#xE72C;" />
+        </Button>
+
+        <Button
+            x:Name="AddPaneButton"
+            Grid.Column="6"
+            Width="32"
+            Height="32"
+            Padding="0"
+            AutomationProperties.Name="Add another terminal"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnAddPane"
+            ToolTipService.ToolTip="Add another terminal (Ctrl+Shift+D)">
+            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="13" Glyph="&#xE710;" />
+        </Button>
+    </Grid>
+</UserControl>
