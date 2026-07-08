@@ -13,15 +13,20 @@ windows/
 │   └── FriendlyTerminal.Core/   headless logic — no UI, no Windows-only deps
 │       ├── Help/                command help catalog + search
 │       ├── Output/              output detectors (clickable next-step lists)
+│       ├── ShellIntegration/    OSC/PTY stream parser (blocks, cwd, TUI state)
 │       ├── Undo/                undo planner + rm-interception rules
 │       └── Platform/            interfaces the OS implements (IFileSystem, …)
+├── app/
+│   └── FriendlyTerminal.App/    WinUI 3 app: ConPTY backend, xterm.js in
+│                                WebView2, blocks UI, sidebar, panels
+├── shell/                       PowerShell shell-integration profile
 ├── tests/
 │   └── FriendlyTerminal.Core.Tests/
 └── FriendlyTerminal.sln
 ```
 
-Not here yet (added in later phases): the WinUI 3 app project, the ConPTY
-backend, and the xterm.js/WebView2 terminal host. Those require Windows.
+The app project (`app/`) requires Windows to build and run; everything under
+`src/` and `tests/` builds anywhere the .NET SDK does.
 
 ## Building and testing — works on macOS
 
