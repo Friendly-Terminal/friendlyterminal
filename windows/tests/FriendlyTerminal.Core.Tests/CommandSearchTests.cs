@@ -24,7 +24,7 @@ public class CommandSearchTests
     {
         var hits = CommandSearch.Search(CommandCatalog.All, "delete").ToList();
         Assert.NotEmpty(hits);
-        Assert.Contains(hits, h => h.Item.IsDangerous && h.Item.Command.StartsWith("Remove-Item"));
+        Assert.Contains(hits, h => h.Item.IsDangerous && h.Item.Command.StartsWith("rm"));
     }
 
     [Fact]
@@ -37,8 +37,9 @@ public class CommandSearchTests
     [Fact]
     public void Search_is_case_insensitive()
     {
+        // The cmdlet name lives in the keywords; the displayed command is the alias.
         var hits = CommandSearch.Search(CommandCatalog.All, "GET-CHILDITEM").ToList();
-        Assert.Contains(hits, h => h.Item.Command.StartsWith("Get-ChildItem"));
+        Assert.Contains(hits, h => h.Item.Command.StartsWith("ls"));
     }
 
     [Fact]
