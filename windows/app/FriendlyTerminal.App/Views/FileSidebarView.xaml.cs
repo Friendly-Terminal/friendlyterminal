@@ -14,8 +14,6 @@ namespace FriendlyTerminal.App.Views;
 public sealed partial class FileSidebarView : UserControl
 {
     private SessionState? _session;
-    private static readonly PowerShellQuoter Quoter = new();
-
     public SessionState? Session
     {
         get => _session;
@@ -79,7 +77,9 @@ public sealed partial class FileSidebarView : UserControl
     {
         if (e.ClickedItem is not FileEntry entry || _session is null) return;
         if (entry.IsDirectory)
-            _session.SendToShell?.Invoke($"Set-Location {Quoter.Quote(entry.Path)}\n");
+            // Route through ExecuteCommand so the line goes in with "\r" (the
+            // Enter key PSReadLine's handler listens for) and gets block markers.
+            _session.NavigateShellTo(entry.Path);
         else
             OpenWithDefault(entry.Path);
     }
@@ -100,7 +100,7 @@ public sealed partial class FileSidebarView : UserControl
         open.Click += (_, _) =>
         {
             if (entry.IsDirectory)
-                _session?.SendToShell?.Invoke($"Set-Location {Quoter.Quote(entry.Path)}\n");
+                _session?.NavigateShellTo(entry.Path);
             else
                 OpenWithDefault(entry.Path);
         };
