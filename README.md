@@ -141,7 +141,7 @@ msbuild FriendlyTerminal.App.csproj -restore -p:Platform=x64 -p:Configuration=De
 
 ## Repository structure
 
-- `FriendlyTerminal/` — SwiftUI, AppKit, SwiftTerm, models, and AI code for macOS.
+- `macos/` — SwiftUI, AppKit, SwiftTerm, models, and AI code for macOS.
 - `project.yml` and `scripts/` — macOS project generation and packaging.
 - `linux/src/main/` — Electron lifecycle, PTY ownership, validated IPC, Git,
   filesystem, and desktop services.

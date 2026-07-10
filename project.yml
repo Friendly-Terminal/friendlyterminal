@@ -19,11 +19,11 @@ targets:
     platform: macOS
     deploymentTarget: "15.0"
     sources:
-      - path: FriendlyTerminal
+      - path: macos
     entitlements:
-      path: FriendlyTerminal/FriendlyTerminal.entitlements
+      path: macos/FriendlyTerminal.entitlements
     info:
-      path: FriendlyTerminal/Info.plist
+      path: macos/Info.plist
       properties:
         CFBundleDisplayName: FriendlyTerminal
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"

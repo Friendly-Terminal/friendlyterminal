@@ -4,7 +4,7 @@ The help panel is a searchable, categorized cheat sheet of friendly command
 explanations. Each command has plain-language detail, a danger flag, and hidden
 search keywords so non-technical users find it by intent, not exact name.
 
-Reference: `FriendlyTerminal/App/CommandHelpView.swift`.
+Reference: `macos/App/CommandHelpView.swift`.
 
 ## Data shape
 

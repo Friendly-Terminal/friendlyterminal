@@ -3,7 +3,7 @@
 Finished commands can carry an `UndoPlan`. Tapping **Undo** on a block (or
 ⌘Z / Shell → Undo Last Command) runs the plan's actions to put things back.
 
-Reference: `FriendlyTerminal/Models/UndoPlan.swift`, `SessionState.swift`.
+Reference: `macos/Models/UndoPlan.swift`, `SessionState.swift`.
 
 ## Action types
 
