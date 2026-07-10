@@ -36,6 +36,7 @@ public sealed partial class BlockView : UserControl
         BuildContextMenu();
         RenderStatus();
         RenderOutput();
+        RenderAdviceBar();
         RenderUndoBar();
     }
 
@@ -59,6 +60,9 @@ public sealed partial class BlockView : UserControl
             case nameof(CommandBlock.IsUndone):
                 RenderUndoBar();
                 break;
+            case nameof(CommandBlock.DidYouMean):
+                RenderAdviceBar();
+                break;
         }
     }
 
@@ -67,6 +71,7 @@ public sealed partial class BlockView : UserControl
         _expanded = !_expanded;
         Chevron.Glyph = _expanded ? "" : "";
         OutputHost.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
+        RenderAdviceBar();
         RenderUndoBar();
     }
 
@@ -120,6 +125,47 @@ public sealed partial class BlockView : UserControl
         HeaderRow.Background = _block.Failed
             ? new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 60, 60))
             : null;
+    }
+
+    /// <summary>Friendly follow-up under a failed command, e.g. a "Did you
+    /// mean ...?" correction the user can click to load.</summary>
+    private void RenderAdviceBar()
+    {
+        AdviceBar.Children.Clear();
+        if (!_expanded || _block.DidYouMean is not { } suggestion)
+        {
+            AdviceBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+        AdviceBar.Visibility = Visibility.Visible;
+
+        AdviceBar.Children.Add(new TextBlock
+        {
+            Text = "Did you mean",
+            FontSize = 12,
+            Opacity = 0.8,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var link = new HyperlinkButton
+        {
+            Content = new TextBlock
+            {
+                Text = suggestion,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12,
+            },
+            Padding = new Thickness(0),
+        };
+        ToolTipService.SetToolTip(link, "Load this into the command bar");
+        link.Click += (_, _) => _session.PrefillCommand(suggestion);
+        AdviceBar.Children.Add(link);
+        AdviceBar.Children.Add(new TextBlock
+        {
+            Text = "?",
+            FontSize = 12,
+            Opacity = 0.8,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
     }
 
     private void RenderUndoBar()

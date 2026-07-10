@@ -18,6 +18,7 @@ public sealed class CommandBlock : INotifyPropertyChanged
     private RenderKind _renderKind = new RenderKind.PlainText();
     private UndoPlan? _undoPlan;
     private bool _isUndone;
+    private string? _didYouMean;
 
     public CommandBlock(string command, string cwd)
     {
@@ -61,6 +62,13 @@ public sealed class CommandBlock : INotifyPropertyChanged
     {
         get => _isUndone;
         set => SetField(ref _isUndone, value);
+    }
+
+    /// <summary>Corrected command line when the shell said the command wasn't found.</summary>
+    public string? DidYouMean
+    {
+        get => _didYouMean;
+        set => SetField(ref _didYouMean, value);
     }
 
     public bool IsRunning => _exitCode is null;

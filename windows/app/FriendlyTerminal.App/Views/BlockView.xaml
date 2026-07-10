@@ -92,6 +92,13 @@
         <ContentPresenter x:Name="OutputHost" Margin="28,2,8,4" />
 
         <StackPanel
+            x:Name="AdviceBar"
+            Margin="28,0,8,6"
+            Orientation="Horizontal"
+            Spacing="6"
+            Visibility="Collapsed" />
+
+        <StackPanel
             x:Name="UndoBar"
             Margin="28,0,8,6"
             Orientation="Horizontal"

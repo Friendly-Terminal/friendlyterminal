@@ -147,6 +147,7 @@ public sealed class SessionState : INotifyPropertyChanged
             case ShellEvent.CommandEnd end:
                 Blocks.FinishBlock(end.ExitCode);
                 AttachUndoPlan(end.ExitCode);
+                AttachAdvice(end.ExitCode);
                 _altScreenOn = false;
                 _bracketedPasteOn = false;
                 RefreshInteractive();
@@ -227,6 +228,15 @@ public sealed class SessionState : INotifyPropertyChanged
             block.UndoPlan = p.Plan;
         else
             block.UndoPlan = _undoPlanner.Plan(block.Command, block.Cwd, allowPreState: false);
+    }
+
+    /// <summary>When a command failed because the shell didn't recognize it,
+    /// attach a "did you mean" correction the block can offer.</summary>
+    private void AttachAdvice(int exitCode)
+    {
+        if (exitCode == 0 || Blocks.LastFinishedBlock is not { } block) return;
+        if (Core.Help.CommandNotFound.ExtractMissingTerm(block.PlainText) is not { } term) return;
+        block.DidYouMean = Core.Help.CommandNotFound.SuggestCorrection(block.Command, term);
     }
 
     public void UndoLastCommand()
