@@ -117,6 +117,12 @@ public sealed partial class BlockView : UserControl
 
     private void RenderStatus()
     {
+        var durationLabel = _block.Duration is { } d ? DurationFormat.Format(d) : null;
+        DurationText.Text = durationLabel ?? "";
+        DurationText.Visibility = durationLabel is null ? Visibility.Collapsed : Visibility.Visible;
+        if (durationLabel is not null)
+            ToolTipService.SetToolTip(DurationText, $"This command took {durationLabel} to finish");
+
         RunningRing.IsActive = _block.IsRunning;
         RunningRing.Visibility = _block.IsRunning ? Visibility.Visible : Visibility.Collapsed;
         CheckIcon.Visibility = _block.Succeeded ? Visibility.Visible : Visibility.Collapsed;

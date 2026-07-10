@@ -26,6 +26,11 @@ public sealed partial class MainWindow : Window
         AddPane();
         RegisterAccelerators();
 
+        Models.CommandNotifier.Initialize(DispatcherQueue);
+        Models.CommandNotifier.ActivateWindow = Activate;
+        Activated += (_, e) =>
+            Models.CommandNotifier.WindowIsActive = e.WindowActivationState != WindowActivationState.Deactivated;
+
         Closed += OnClosed;
 
         try { SystemBackdrop = new MicaBackdrop(); }
@@ -43,6 +48,7 @@ public sealed partial class MainWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        Models.CommandNotifier.Shutdown();
         foreach (var pane in _panes)
             pane.Shutdown();
     }

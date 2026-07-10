@@ -148,6 +148,8 @@ public sealed class SessionState : INotifyPropertyChanged
                 Blocks.FinishBlock(end.ExitCode);
                 AttachUndoPlan(end.ExitCode);
                 AttachAdvice(end.ExitCode);
+                if (Blocks.LastFinishedBlock is { } finished)
+                    CommandNotifier.CommandFinished(finished);
                 _altScreenOn = false;
                 _bracketedPasteOn = false;
                 RefreshInteractive();

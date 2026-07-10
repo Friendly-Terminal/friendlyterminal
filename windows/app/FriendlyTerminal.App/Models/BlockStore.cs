@@ -27,6 +27,7 @@ public sealed class BlockStore
     public void FinishBlock(int exitCode)
     {
         if (CurrentBlock is not { } block) return;
+        block.Duration = DateTime.Now - block.StartedAt;
         block.ExitCode = exitCode;
         var kind = _pipeline.Process(block.PlainText, block.Command, block.Cwd);
         block.RenderKind = kind ?? (block.Failed

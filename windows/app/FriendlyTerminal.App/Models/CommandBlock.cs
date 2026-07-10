@@ -21,6 +21,7 @@ public sealed class CommandBlock : INotifyPropertyChanged
     private bool _isUndone;
     private string? _didYouMean;
     private InstallableTool? _missingTool;
+    private TimeSpan? _duration;
 
     public CommandBlock(string command, string cwd)
     {
@@ -78,6 +79,13 @@ public sealed class CommandBlock : INotifyPropertyChanged
     {
         get => _missingTool;
         set => SetField(ref _missingTool, value);
+    }
+
+    /// <summary>How long the command ran; set when the block finishes, before ExitCode.</summary>
+    public TimeSpan? Duration
+    {
+        get => _duration;
+        set => SetField(ref _duration, value);
     }
 
     public bool IsRunning => _exitCode is null;
