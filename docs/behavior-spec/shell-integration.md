@@ -37,3 +37,15 @@ cwd (which drives the breadcrumb bar and git status).
   belongs in `FriendlyTerminal.Core`; the PTY/terminal widget feeds it bytes.
 - Backing PTY is **ConPTY**; the terminal widget is **xterm.js in WebView2**,
   which already understands these OSC sequences.
+
+## Linux implementation
+
+- bash and zsh wrappers under `linux/resources/shell/` preserve the user's
+  startup files and emit OSC 133, 633, and 7 markers.
+- The Electron main process owns each node-pty session and buffers initial
+  output until the renderer signals that its xterm.js pane is ready.
+- zsh emits command-start and command-end events through `preexec` and `precmd`.
+  bash records the completed command and exit status through `PROMPT_COMMAND`
+  without replacing the user's DEBUG trap.
+- fish and other shells retain normal PTY behavior but do not yet provide the
+  enhanced command-status history.
