@@ -6,7 +6,7 @@ than plain text. The most distinctive friendly behavior is the **command list**:
 output turned into clickable chips that each fill the command bar with an obvious
 next step.
 
-Reference: `FriendlyTerminal/OutputRendering/Detectors.swift`.
+Reference: `macos/OutputRendering/Detectors.swift`.
 
 ## Render kinds
 

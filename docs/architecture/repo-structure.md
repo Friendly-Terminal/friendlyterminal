@@ -7,7 +7,6 @@ stacks into a single abstraction.
 
 ```
 friendlyterminal/
-├── FriendlyTerminal/          macOS app sources (SwiftUI + AppKit + SwiftTerm)
 ├── project.yml                xcodegen project definition for the macOS app
 ├── scripts/                   macOS build/package scripts
 ├── .github/workflows/         validation and release pipelines
@@ -15,6 +14,8 @@ friendlyterminal/
 ├── docs/
 │   ├── architecture/          layout + stack decisions (this folder)
 │   └── behavior-spec/         the cross-platform source of truth (see below)
+│
+├── macos/                     macOS app sources (SwiftUI + AppKit + SwiftTerm)
 │
 ├── linux/
 │   ├── src/main/              Electron main process, PTY and OS services
@@ -29,14 +30,15 @@ friendlyterminal/
     └── README.md                     how to build/test (works on macOS too)
 ```
 
-## Why the macOS app stays at the repo root
+## Why the macOS app moved into `macos/`
 
-The macOS app, its `xcodegen` project, its packaging script, and its release
-workflow all assume the app lives at the root. Moving it into `macos/` would
-break the working release pipeline (v1.0.0, v1.1.0) for no functional gain. The
-Windows work lives in its own `windows/` subtree alongside it. If we ever retire
-or rewrite the macOS app, we can revisit a symmetric `macos/` + `windows/`
-split then.
+The macOS app used to live at the repo root, from before the Linux and Windows
+apps existed. Now that all three platforms are under active development, it
+lives in `macos/` alongside `linux/` and `windows/` for a consistent layout.
+`project.yml` (the `xcodegen` project definition) and `scripts/build-and-package.sh`
+were updated to point at the new path; the generated Xcode project, scheme, and
+app name are unaffected, so the release pipeline (`FriendlyTerminal.dmg`) is
+unchanged.
 
 ## Stack decision (Linux)
 
