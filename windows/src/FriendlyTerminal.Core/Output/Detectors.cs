@@ -14,11 +14,20 @@ internal static class DetectorUtil
     public static string ResolvePath(string p, string cwd, string home)
     {
         if (p.StartsWith('~')) return home + p[1..];
-        if (System.IO.Path.IsPathRooted(p)) return p;
+        if (IsRooted(p)) return p;
         // Join with '/' (Windows APIs accept both separators) so fake and real
         // file systems agree on the shape.
         return cwd.TrimEnd('/', '\\') + "/" + p;
     }
+
+    /// <summary>
+    /// Windows-style rootedness, independent of the host OS. Path.IsPathRooted
+    /// rejects "C:\..." when running on Linux, which broke these detectors on
+    /// the Linux CI runner.
+    /// </summary>
+    public static bool IsRooted(string path) =>
+        (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+        || path.StartsWith('\\') || path.StartsWith('/');
 
     public static string IconForFile(string name) =>
         System.IO.Path.GetExtension(name).ToLowerInvariant() switch
@@ -227,7 +236,7 @@ public sealed class ImagePathDetector : IOutputDetector
         var lastLine = output.Split('\n')
             .Select(l => l.Trim())
             .LastOrDefault(l => l.Length > 0);
-        if (lastLine is null || !System.IO.Path.IsPathRooted(lastLine)) return null;
+        if (lastLine is null || !DetectorUtil.IsRooted(lastLine)) return null;
         if (!DetectorUtil.ImageExtensions.Contains(System.IO.Path.GetExtension(lastLine))) return null;
         return _fs.Exists(lastLine) ? new RenderKind.ImageFile(lastLine) : null;
     }
