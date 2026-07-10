@@ -1,20 +1,27 @@
 # Repository structure
 
-FriendlyTerminal is becoming a multi-platform project: a shipping macOS app and
-an in-progress Windows app. The two apps cannot share UI code — SwiftUI is
-Apple-only — so the thing they share is **behavior**, captured as a spec rather
-than as a compiled library.
+FriendlyTerminal is a multi-platform project with separate macOS, Linux, and
+Windows applications. The apps do not share UI code, so they share **behavior**
+through a platform-neutral specification rather than forcing unrelated desktop
+stacks into a single abstraction.
 
 ```
 friendlyterminal/
 ├── FriendlyTerminal/          macOS app sources (SwiftUI + AppKit + SwiftTerm)
 ├── project.yml                xcodegen project definition for the macOS app
 ├── scripts/                   macOS build/package scripts
-├── .github/workflows/         macOS release pipeline
+├── .github/workflows/         validation and release pipelines
 │
 ├── docs/
 │   ├── architecture/          layout + stack decisions (this folder)
 │   └── behavior-spec/         the cross-platform source of truth (see below)
+│
+├── linux/
+│   ├── src/main/              Electron main process, PTY and OS services
+│   ├── src/preload/           context-isolated renderer API
+│   ├── src/renderer/          xterm.js terminal and application UI
+│   ├── src/shared/            typed IPC contracts
+│   └── resources/shell/       bash and zsh integration
 │
 └── windows/
     ├── src/FriendlyTerminal.Core/   headless C# logic, no UI, no Windows deps
@@ -30,6 +37,22 @@ break the working release pipeline (v1.0.0, v1.1.0) for no functional gain. The
 Windows work lives in its own `windows/` subtree alongside it. If we ever retire
 or rewrite the macOS app, we can revisit a symmetric `macos/` + `windows/`
 split then.
+
+## Stack decision (Linux)
+
+- **Application shell:** Electron with a context-isolated renderer.
+- **Terminal widget:** xterm.js with fit, search, and web-link addons.
+- **PTY / process:** node-pty using the host's Unix PTY implementation.
+- **Default shell:** the user's `$SHELL`, with bash, zsh, fish, and POSIX shell
+  fallbacks.
+- **Shell integration:** bundled bash and zsh profiles emitting OSC 133, 633,
+  and 7 markers.
+- **Packaging:** electron-builder producing AppImage, Debian, and RPM artifacts.
+
+Electron is scoped to Linux and does not replace the native macOS or Windows
+apps. Its mature PTY and terminal ecosystem provides reliable full-screen
+terminal behavior, while the preload boundary keeps filesystem and process
+capabilities out of renderer code.
 
 ## Stack decision (Windows)
 
@@ -53,4 +76,5 @@ this can be developed and verified before switching to a Windows machine. Only
 the terminal widget, ConPTY, and WinUI views genuinely require Windows.
 
 The macOS app remains the reference implementation. `docs/behavior-spec/` is the
-contract; the Swift app and the C# core are two implementations of it.
+contract; the Swift, C#, and TypeScript implementations should update it when a
+cross-platform behavior changes.
