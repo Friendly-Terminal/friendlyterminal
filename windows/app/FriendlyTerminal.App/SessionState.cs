@@ -236,6 +236,13 @@ public sealed class SessionState : INotifyPropertyChanged
     {
         if (exitCode == 0 || Blocks.LastFinishedBlock is not { } block) return;
         if (Core.Help.CommandNotFound.ExtractMissingTerm(block.PlainText) is not { } term) return;
+
+        // A real tool that just isn't installed beats a typo guess.
+        if (Core.Help.ToolInstallCatalog.Lookup(term) is { } tool)
+        {
+            block.MissingTool = tool;
+            return;
+        }
         block.DidYouMean = Core.Help.CommandNotFound.SuggestCorrection(block.Command, term);
     }
 

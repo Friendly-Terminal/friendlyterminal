@@ -61,6 +61,7 @@ public sealed partial class BlockView : UserControl
                 RenderUndoBar();
                 break;
             case nameof(CommandBlock.DidYouMean):
+            case nameof(CommandBlock.MissingTool):
                 RenderAdviceBar();
                 break;
         }
@@ -132,13 +133,38 @@ public sealed partial class BlockView : UserControl
     private void RenderAdviceBar()
     {
         AdviceBar.Children.Clear();
-        if (!_expanded || _block.DidYouMean is not { } suggestion)
+        if (!_expanded || (_block.DidYouMean is null && _block.MissingTool is null))
         {
             AdviceBar.Visibility = Visibility.Collapsed;
             return;
         }
         AdviceBar.Visibility = Visibility.Visible;
 
+        if (_block.MissingTool is { } tool)
+        {
+            AdviceBar.Children.Add(new TextBlock
+            {
+                Text = $"{tool.DisplayName} isn't installed on this PC.",
+                FontSize = 12,
+                Opacity = 0.8,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var install = new Button
+            {
+                Content = $"Install {tool.DisplayName} with winget",
+                FontSize = 12,
+                Padding = new Thickness(10, 3, 10, 3),
+            };
+            ToolTipService.SetToolTip(install,
+                $"Runs: {FriendlyTerminal.Core.Help.ToolInstallCatalog.InstallCommand(tool)}\n"
+                + "When it finishes, open a new terminal pane so the shell picks up the new tool.");
+            install.Click += (_, _) =>
+                _session.ExecuteCommand(FriendlyTerminal.Core.Help.ToolInstallCatalog.InstallCommand(tool));
+            AdviceBar.Children.Add(install);
+            return;
+        }
+
+        var suggestion = _block.DidYouMean!;
         AdviceBar.Children.Add(new TextBlock
         {
             Text = "Did you mean",

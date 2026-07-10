@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using FriendlyTerminal.Core.Help;
 using FriendlyTerminal.Core.Output;
 using FriendlyTerminal.Core.Undo;
 
@@ -19,6 +20,7 @@ public sealed class CommandBlock : INotifyPropertyChanged
     private UndoPlan? _undoPlan;
     private bool _isUndone;
     private string? _didYouMean;
+    private InstallableTool? _missingTool;
 
     public CommandBlock(string command, string cwd)
     {
@@ -69,6 +71,13 @@ public sealed class CommandBlock : INotifyPropertyChanged
     {
         get => _didYouMean;
         set => SetField(ref _didYouMean, value);
+    }
+
+    /// <summary>A known tool that isn't installed, when the failed command named one.</summary>
+    public InstallableTool? MissingTool
+    {
+        get => _missingTool;
+        set => SetField(ref _missingTool, value);
     }
 
     public bool IsRunning => _exitCode is null;
