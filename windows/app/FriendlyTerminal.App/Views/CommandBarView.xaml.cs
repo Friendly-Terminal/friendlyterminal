@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using FriendlyTerminal.Core.Help;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -24,6 +25,7 @@ public sealed partial class CommandBarView : UserControl
     };
 
     private SessionState? _session;
+    private readonly Queue<string> _pastedLines = new();
 
     public SessionState? Session
     {
@@ -129,6 +131,90 @@ public sealed partial class CommandBarView : UserControl
 
         _session.ExecuteCommand(text);
         Input.Text = "";
+        LoadNextPastedLine();
+    }
+
+    // MARK: - Paste rescue
+
+    /// <summary>
+    /// Intercepts paste so prompt prefixes ("$ ", "PS C:\&gt; ") from copied docs
+    /// don't break the command, and multi-line snippets load one line at a time.
+    /// The notice bar always tells the user what was changed.
+    /// </summary>
+    private void OnPaste(object sender, TextControlPasteEventArgs e)
+    {
+        // While Claude (or another TUI) owns the input this is chat text,
+        // not a command - leave the paste alone.
+        if (_session is null || _session.IsClaudeRunning || _session.IsTuiActive) return;
+
+        var view = Clipboard.GetContent();
+        if (!view.Contains(StandardDataFormats.Text)) return;
+        e.Handled = true;
+        _ = HandlePasteAsync(view);
+    }
+
+    private async Task HandlePasteAsync(DataPackageView view)
+    {
+        string text;
+        try { text = await view.GetTextAsync(); }
+        catch { return; }
+
+        var result = PasteRescue.Clean(text);
+        _pastedLines.Clear();
+
+        if (result.Lines.Count == 0)
+        {
+            if (result.SkippedComments > 0)
+                ShowPasteNotice("That paste was only comment lines (starting with #). Comments are notes, not commands, so nothing was inserted.");
+            return;
+        }
+
+        InsertAtSelection(result.Lines[0]);
+        foreach (var extra in result.Lines.Skip(1))
+            _pastedLines.Enqueue(extra);
+
+        var notes = new List<string>();
+        if (result.RemovedPrefix is { } prefix)
+            notes.Add($"Removed the \"{prefix}\" prompt symbol for you - it marks the prompt in examples and isn't part of the command.");
+        if (result.Lines.Count > 1)
+            notes.Add($"You pasted {result.Lines.Count} command lines. The first one is loaded; press Enter to run it and the next line will load automatically.");
+        if (result.SkippedComments > 0)
+            notes.Add($"Skipped {result.SkippedComments} comment line{(result.SkippedComments == 1 ? "" : "s")}.");
+
+        if (notes.Count > 0)
+            ShowPasteNotice(string.Join(" ", notes));
+        else
+            PasteNotice.IsOpen = false;
+    }
+
+    private void LoadNextPastedLine()
+    {
+        if (_pastedLines.Count == 0)
+        {
+            PasteNotice.IsOpen = false;
+            return;
+        }
+        var next = _pastedLines.Dequeue();
+        Input.Text = next;
+        Input.SelectionStart = next.Length;
+        ShowPasteNotice(_pastedLines.Count > 0
+            ? $"Loaded the next pasted line ({_pastedLines.Count} more after this one). Press Enter to run it."
+            : "Loaded the last pasted line. Press Enter to run it.");
+    }
+
+    private void InsertAtSelection(string text)
+    {
+        var current = Input.Text;
+        var start = Input.SelectionStart;
+        var end = start + Input.SelectionLength;
+        Input.Text = current[..start] + text + current[end..];
+        Input.SelectionStart = start + text.Length;
+    }
+
+    private void ShowPasteNotice(string message)
+    {
+        PasteNotice.Message = message;
+        PasteNotice.IsOpen = true;
     }
 
     private static bool IsDangerous(string command)

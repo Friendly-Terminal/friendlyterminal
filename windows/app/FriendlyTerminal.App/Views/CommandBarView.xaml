@@ -4,6 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <StackPanel Padding="12,8,12,10" Spacing="6">
+        <InfoBar
+            x:Name="PasteNotice"
+            FontSize="12"
+            IsClosable="True"
+            IsOpen="False"
+            Severity="Informational" />
+
         <TextBlock
             x:Name="CompletionHints"
             MaxLines="2"
@@ -30,6 +37,7 @@
                 FontSize="14"
                 IsSpellCheckEnabled="False"
                 KeyDown="OnKeyDown"
+                Paste="OnPaste"
                 PlaceholderText="Run a command…" />
 
             <Button
