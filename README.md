@@ -1,191 +1,183 @@
 # FriendlyTerminal
 
-A friendlier terminal for macOS and Windows. FriendlyTerminal wraps a real shell
-(zsh on macOS, PowerShell on Windows) in a native app that adds command "blocks"
-(each command and its output grouped together), a file sidebar and breadcrumb
-navigation, a built-in command help menu, first-class support for interactive
-programs (vim, less, top, man, Claude Code...), split panes, undo for common
-commands, and, on macOS, optional on-device AI for translating plain English
-into commands and explaining errors.
+FriendlyTerminal is a friendlier terminal for macOS, Linux, and Windows. It
+keeps a real shell at the center, then adds the navigation, discoverability,
+context, and safety expected from a modern desktop app.
+
+Each platform uses a mature platform-specific terminal stack and follows the
+shared behavior contract in [`docs/behavior-spec`](docs/behavior-spec/README.md).
 
 ## Install
 
 ### macOS
 
-**No coding required.** Just download the app:
+1. Download `FriendlyTerminal.dmg` from the
+   [latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest).
+2. Open it and drag FriendlyTerminal into Applications.
+3. On first launch, right-click the app, choose **Open**, then confirm **Open**.
 
-1. Go to the **[Releases page](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest)**
-   and download **`FriendlyTerminal.dmg`**.
-2. Open the downloaded file and drag **FriendlyTerminal** into your **Applications** folder.
-3. The first time you open it, **right-click** (or Control-click) the app icon and
-   choose **Open**, then click **Open** in the dialog that appears.
+The first-launch step is required because current releases are not notarized by
+a paid Apple Developer account.
 
-> **Why the right-click the first time?** macOS shows a warning for apps that
-> aren't signed by a paid Apple Developer account. Right-click, then Open tells
-> macOS you trust it. You only have to do this once; after that it opens with a
-> normal double-click.
+### Linux
+
+Download the package for your distribution from the
+[latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest):
+
+- **Ubuntu, Debian, Linux Mint, Pop!_OS:** open the `.deb` in your software
+  installer.
+- **Fedora, RHEL-family, openSUSE:** open the `.rpm` in your software installer.
+- **Other distributions:** download the `.AppImage`, allow it to run as a
+  program in the file's Properties dialog, then open it.
+
+The packaged app does not require Node.js or development tools.
 
 ### Windows
 
-There's no prebuilt installer yet, so for now you build it from source (see
-[Building from source](#building-from-source-for-developers) below). A packaged
-release is planned.
+A prebuilt installer is not available yet. Follow the Windows source-build
+instructions below.
 
 ## Features
 
-- **Command blocks** - each command and its output are grouped, with exit status,
-  so scrollback reads like a transcript instead of a wall of text. Failed
-  commands are marked, and any block can be collapsed, copied, or re-run.
-- **Clickable output** - listings become buttons: `ls` shows your files as chips
-  that fill in `cd` or open the file, `git log --oneline` offers `git show`,
-  `git status` offers `git add`, and so on. JSON renders as a collapsible tree,
-  CSV and column output as tables.
-- **File sidebar & breadcrumbs** - browse the current directory and jump around
-  the filesystem by clicking. The sidebar can rename, reveal, and trash files.
-- **Undo** - `rm` is quietly rerouted to the Trash (Recycle Bin on Windows) so
-  it can be undone, and commands like `mkdir`, `cp`, `mv`, `git add`, and
-  `git commit` get an Undo button on their block.
-- **Interactive program support** - full-screen TUIs (vim, less, top, htop, man,
-  nano) and raw-mode inline programs (Claude Code, REPLs) work correctly. While
-  one is running, the sidebar shows what the program is and one-tap buttons for
-  getting out of it.
-- **Claude Code integration** - a toolbar button starts or resumes a session, a
-  setup checker verifies Node, the CLI, and login, and while Claude runs the
-  sidebar becomes a control panel (pick options 1-4, Enter, Stop, slash commands).
-- **Source control & processes** - a mini Git panel to stage, commit, and push
-  without memorizing commands, and a "What's Running" panel listing everything
-  listening on a port, with one-click open-in-browser or kill.
-- **Command help menu** - a built-in cheat sheet of ~20 categories (Navigate,
-  Files, GitHub, AI, Search, System, Network...), each listing common commands.
-  Dangerous commands are flagged, and you can choose which categories to show.
-- **Project commands** - the sidebar detects your project type (npm scripts,
-  Python, Rust, Go, Make, Docker...) and offers its usual commands as buttons.
-- **Split panes** - open up to six terminals side by side; keyboard input follows
-  the focused pane.
-- **Get-started tutorial and welcome tour** - a dismissible in-app guide for
-  newcomers, plus a short first-launch tour of the interface.
-- **On-device AI (macOS only, optional)** - on supported hardware, translate
-  natural language into shell commands and get plain-English explanations of
-  errors, powered by Apple's on-device Foundation Models. No data leaves your
-  machine. There is no Windows equivalent of this feature.
+- **Real terminal behavior** for SSH, vim, nano, less, htop, REPLs, Claude Code,
+  and other interactive programs.
+- **Tabs and split panes** for independent shells in one window.
+- **File sidebar and breadcrumbs** for browsing and changing the working folder.
+- **Command discovery** with plain-language descriptions and danger indicators.
+- **Git context** showing the current branch and working-tree state.
+- **Command blocks and clickable output** on macOS and Windows, including rich
+  JSON, CSV, table, file, branch, tag, commit, and history rendering.
+- **Recoverable deletion and command undo** on macOS and Windows for supported
+  filesystem, Git, archive, download, and package operations.
+- **Project and process panels** on macOS and Windows for common project tasks,
+  listening ports, browser launch, and process control.
+- **Claude Code controls** on macOS and Windows for setup diagnostics, launch,
+  session controls, and interactive shortcuts.
+- **Optional on-device AI on macOS** using Apple's Foundation Models to turn
+  plain language into commands and explain errors without sending data away.
+
+Linux currently includes the real PTY, tabs, four-way split workspaces, file and
+breadcrumb navigation, live Git context, command history, command guide,
+terminal search, link detection, onboarding, and persistent preferences. Block
+rendering, undo, Claude controls, project detection, and process panels remain
+Linux parity work.
 
 ## System requirements
 
 ### macOS
 
-- **macOS 15.0 (Sequoia) or later** to run the app.
-- **macOS 26 (Tahoe) or later with Apple Intelligence enabled** for the optional
-  AI features. Everything else works without them.
+- macOS 15.0 or later.
+- macOS 26 with Apple Intelligence enabled for optional AI features.
+
+### Linux
+
+- A current x86_64 Linux desktop with GTK 3 and standard desktop utilities.
+- bash, zsh, fish, or another interactive POSIX shell. bash and zsh receive
+  enhanced command-status and working-directory integration.
 
 ### Windows
 
-- **Windows 10 version 1809 (build 17763) or later**; Windows 11 recommended.
-- The **WebView2 runtime**, which is preinstalled on Windows 11 and most
-  up-to-date Windows 10 machines.
+- Windows 10 version 1809 or later; Windows 11 recommended.
+- WebView2, which is included with Windows 11 and current Windows 10 systems.
 
----
+## Building from source
 
-## Building from source (for developers)
-
-You only need this section if you want to modify the code or build it yourself.
-
-### macOS
-
-Requirements:
-
-- **Xcode 16** (Swift 6 toolchain).
-- **[XcodeGen](https://github.com/yonaskolb/XcodeGen)** - the Xcode project is
-  generated from `project.yml` and is intentionally not checked into git:
-  ```sh
-  brew install xcodegen
-  ```
-  SwiftTerm (the terminal emulator) is fetched automatically by Swift Package
-  Manager when you build.
-
-Clone the repo and run the packaging script, which generates the project, builds
-a Release app, and produces `build/FriendlyTerminal.dmg`:
+Clone the repository first:
 
 ```sh
 git clone https://github.com/aaditaggarwal26/friendlyterminal.git
 cd friendlyterminal
+```
+
+### macOS
+
+Install Xcode 16 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen),
+then run:
+
+```sh
 ./scripts/build-and-package.sh
 ```
 
-To work on the code interactively, generate the project and open it (re-run
-`xcodegen generate` whenever `project.yml` changes), then press Cmd+R:
+The release application and `build/FriendlyTerminal.dmg` are generated from
+`project.yml`. For interactive development, run `xcodegen generate`, open
+`FriendlyTerminal.xcodeproj`, and build the `FriendlyTerminal` scheme.
+
+### Linux
+
+Install Node.js 22 or later, npm, a C/C++ compiler, Python 3, and make:
 
 ```sh
-xcodegen generate
-open FriendlyTerminal.xcodeproj
+cd linux
+npm ci
+npm test
+npm run dev
 ```
+
+Build the AppImage, Debian package, and RPM package on Linux with:
+
+```sh
+npm run package
+```
+
+Artifacts are written to `linux/release/`. See
+[`linux/README.md`](linux/README.md) for architecture and keyboard shortcuts.
 
 ### Windows
 
-Requirements:
-
-- **.NET 8 SDK**.
-- **Visual Studio 2022 or later** (or the Build Tools) with the
-  **Windows App SDK / WinUI** workload. The app project needs MSBuild from
-  Visual Studio; a plain `dotnet build` can't package WinUI apps.
-
-The shared logic (`FriendlyTerminal.Core`) has no Windows dependencies, so its
-tests run anywhere the .NET SDK does, including macOS:
+Install the .NET 8 SDK and Visual Studio 2022 or later with the Windows App SDK
+and WinUI workloads. The platform-neutral core tests run anywhere with .NET:
 
 ```sh
 cd windows
 dotnet test
 ```
 
-To build and run the app itself, open `windows\FriendlyTerminal.sln` in Visual
-Studio and run the `FriendlyTerminal.App` project (x64), or from a developer
-prompt:
+Build the app in a Visual Studio developer prompt:
 
-```sh
+```powershell
 cd windows\app\FriendlyTerminal.App
 msbuild FriendlyTerminal.App.csproj -restore -p:Platform=x64 -p:Configuration=Debug
 ```
 
-The executable lands in `bin\x64\Debug\net8.0-windows10.0.19041.0\FriendlyTerminal.App.exe`.
+## Repository structure
 
-### Cutting a release (macOS)
+- `FriendlyTerminal/` — SwiftUI, AppKit, SwiftTerm, models, and AI code for macOS.
+- `project.yml` and `scripts/` — macOS project generation and packaging.
+- `linux/src/main/` — Electron lifecycle, PTY ownership, validated IPC, Git,
+  filesystem, and desktop services.
+- `linux/src/preload/` — narrow context-isolated renderer API.
+- `linux/src/renderer/` — xterm.js panes, tabs, sidebar, command guide, and UI.
+- `linux/resources/shell/` — bash and zsh OSC shell integration.
+- `windows/src/FriendlyTerminal.Core/` — testable headless Windows logic.
+- `windows/app/FriendlyTerminal.App/` — WinUI, ConPTY, and WebView2 application.
+- `windows/tests/` — Windows core tests.
+- `docs/behavior-spec/` — platform-neutral behavior contract.
+- `.github/workflows/` — continuous integration and release packaging.
 
-Pushing a version tag triggers the GitHub Actions workflow in
-`.github/workflows/release.yml`, which builds the macOS app and attaches a
-downloadable `.dmg` to a new GitHub Release:
+## How it works
+
+FriendlyTerminal spawns a real shell: login zsh on macOS, the user's POSIX shell
+in a Linux PTY, and PowerShell in a Windows ConPTY. Small shell profiles emit
+standard OSC escape sequences for prompt, command, exit, and working-directory
+state. The app observes those markers while raw bytes continue to the terminal
+emulator: SwiftTerm on macOS and xterm.js on Linux and Windows. Full-screen and
+raw-mode programs continue to control the terminal normally.
+
+## Releases
+
+Pushing a version tag runs `.github/workflows/release.yml`, which builds the
+macOS disk image and Linux AppImage, Debian, and RPM packages, then attaches them
+to a GitHub Release:
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
-### Project structure
+## Contributing and security
 
-- `FriendlyTerminal/App/` - SwiftUI views and the AppKit terminal bridge (macOS).
-- `FriendlyTerminal/Models/` - session, workspace, block-store, and the
-  shell-integration parser (macOS).
-- `FriendlyTerminal/AIKit/` - the optional on-device AI layer (gated to macOS 26).
-- `windows/src/FriendlyTerminal.Core/` - shared headless logic for the Windows
-  app: shell-integration parsing, output detectors, undo rules, help catalog.
-  Plain `net8.0`, fully unit-tested, no UI dependencies.
-- `windows/app/FriendlyTerminal.App/` - the WinUI 3 app: ConPTY backend,
-  xterm.js terminal host in WebView2, blocks UI, sidebar, and panels.
-- `windows/tests/` - tests for the Core library.
-- `docs/behavior-spec/` - the platform-neutral spec both apps implement.
-- `project.yml` - the XcodeGen spec the `.xcodeproj` is generated from.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), follow the
+[Code of Conduct](CODE_OF_CONDUCT.md), and report vulnerabilities through the
+private process in [SECURITY.md](SECURITY.md).
 
-### How it works
-
-FriendlyTerminal spawns a normal shell (a login zsh on macOS, PowerShell in a
-ConPTY on Windows) and sources a small shell-integration profile that emits
-standard OSC escape sequences: `133;A/B/C/D` for prompt/command/output/exit,
-`633;E` for the command text, and the working directory via OSC 7 or 9;9. The
-app parses those out of the PTY stream to build command blocks and track the
-cwd, while the raw bytes still flow to the terminal emulator (SwiftTerm on
-macOS, xterm.js on Windows) for rendering. Interactive programs are detected
-from the alternate-screen (`?1049h`) and bracketed-paste (`?2004h`) mode
-switches, so the UI knows when to hand the keyboard straight to the running
-program.
-
-## License
-
-Released under the [GNU General Public License v3.0](LICENSE).
+FriendlyTerminal is released under the [GNU General Public License v3.0](LICENSE).
