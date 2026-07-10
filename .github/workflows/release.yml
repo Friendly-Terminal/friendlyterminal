@@ -1,46 +1,75 @@
 name: Release
 
-# Build the app and publish a downloadable .dmg whenever you push a version tag,
-# e.g.  git tag v1.0.0  &&  git push origin v1.0.0
 on:
   push:
     tags:
-      - 'v*'
-  # Lets you trigger a build by hand from the Actions tab (no release attached).
+      - "v*"
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed to create the GitHub Release
+  contents: write
 
 jobs:
-  build:
-    # macOS 26 image: it ships Xcode 26 with the macOS 26 SDK, which is required
-    # for the FoundationModels (Apple Intelligence) code. Older images (macos-15
-    # / Xcode 16) lack that framework and fail with "no such module".
+  macos:
     runs-on: macos-26
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Build app and package .dmg
-        run: ./scripts/build-and-package.sh
-
-      - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: ./scripts/build-and-package.sh
+      - uses: actions/upload-artifact@v4
         with:
-          files: build/FriendlyTerminal.dmg
-          body: |
-            ### Install
+          name: macos-release
+          path: build/FriendlyTerminal.dmg
+          if-no-files-found: error
 
-            1. Download **FriendlyTerminal.dmg** below.
-            2. Open it, then drag **FriendlyTerminal** into the **Applications** folder.
-            3. The first time you launch it, **right-click the app → Open**, then
-               click **Open** in the dialog. You only have to do this once — it's
-               because the app isn't notarized by Apple.
+  linux:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: linux/package-lock.json
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes build-essential python3 rpm
+      - run: npm ci
+      - run: npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: linux/release/*
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - macos
+      - linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ### macOS
+
+            Download `FriendlyTerminal.dmg`, open it, and drag FriendlyTerminal
+            into Applications. On first launch, right-click the app and choose Open.
+
+            ### Linux
+
+            Ubuntu and Debian users should download the `.deb`. Fedora and RPM-based
+            distributions should download the `.rpm`. The AppImage is the portable
+            option for other distributions; mark it executable once, then open it.
