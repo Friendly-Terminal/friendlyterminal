@@ -2,3 +2,6 @@ FriendlyTerminal.xcodeproj
 .DS_Store
 build/
 CLAUDE.md
+linux/node_modules/
+linux/dist/
+linux/release/

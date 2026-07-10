@@ -1,8 +1,8 @@
 # Behavior spec
 
 This folder is the cross-platform contract for FriendlyTerminal. It describes
-*what the app does* in platform-neutral terms, so the macOS (Swift) app and the
-Windows (C#) app behave the same way.
+*what the app does* in platform-neutral terms, so the macOS (Swift), Linux
+(TypeScript), and Windows (C#) apps converge on the same behavior.
 
 The macOS app is the current reference implementation; where these docs and the
 Swift code disagree, update whichever is wrong and keep them in sync.
@@ -15,8 +15,8 @@ Swift code disagree, update whichever is wrong and keep them in sync.
 | [shell-integration.md](shell-integration.md) | The block model (command start/end/exit code) via OSC markers | `FriendlyTerminal/Terminal/*`, zsh integration |
 | [platform-mapping.md](platform-mapping.md) | macOS API → Windows equivalent for every OS touchpoint | n/a |
 
-## How to use this during the Windows port
+## How to use this during platform work
 
-1. Implement the rule in `windows/src/FriendlyTerminal.Core` against the spec.
+1. Implement the rule against the spec in the relevant platform directory.
 2. Write a unit test that encodes the spec's examples.
 3. If the macOS app does something the spec doesn't mention, add it here first.

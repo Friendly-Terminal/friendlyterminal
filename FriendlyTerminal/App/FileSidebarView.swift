@@ -2,7 +2,7 @@ import AppKit
 import QuickLookUI
 import SwiftUI
 
-private func openQuickLook(url: URL) {
+@MainActor private func openQuickLook(url: URL) {
     let panel = QLPreviewPanel.shared()
     panel?.currentPreviewItemIndex = 0
     QuickLookDataSource.shared.url = url
@@ -10,8 +10,8 @@ private func openQuickLook(url: URL) {
     panel?.makeKeyAndOrderFront(nil)
 }
 
-private final class QuickLookDataSource: NSObject, QLPreviewPanelDataSource, @unchecked Sendable {
-    nonisolated(unsafe) static let shared = QuickLookDataSource()
+@MainActor private final class QuickLookDataSource: NSObject, @preconcurrency QLPreviewPanelDataSource, @unchecked Sendable {
+    static let shared = QuickLookDataSource()
     var url: URL?
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { url != nil ? 1 : 0 }

@@ -4,25 +4,25 @@ Every place the macOS app touches the OS, and its Windows equivalent. This is th
 checklist of platform-injected dependencies the `FriendlyTerminal.Core` library
 must abstract behind interfaces so the logic stays portable and testable.
 
-| Concern | macOS (current) | Windows (planned) |
-| --- | --- | --- |
-| UI framework | SwiftUI + AppKit | WinUI 3 + C# |
-| Terminal widget | SwiftTerm (`LocalProcessTerminalView`) | xterm.js in WebView2 |
-| PTY / process | fork zsh via SwiftTerm | ConPTY pseudo-console |
-| Default shell | zsh | PowerShell (WSL/bash later) |
-| Shell integration | zsh script emitting OSC 133/633/7 | PowerShell profile emitting OSC 133 + cwd |
-| Delete → recoverable | `FileManager.trashItem` | Recycle Bin (`Microsoft.VisualBasic.FileIO`) |
-| Restore a delete | move back from Trash | Recycle Bin restore (shell API) |
-| List a directory | `FileManager.contentsOfDirectory` | `System.IO.Directory` |
-| Open a file/folder | `open` | `Invoke-Item` / `start` / `explorer` |
-| Run git | `Process` → `/usr/bin/git` | `Process` → `git.exe` |
-| Process / port monitor | `ps` / `lsof` | `Get-Process` / `Get-NetTCPConnection` |
-| Package manager (help+undo) | Homebrew (`brew`) | winget or scoop |
-| Path quoting | POSIX single-quote | PowerShell quoting rules |
-| On-device AI | FoundationModels (Apple Intelligence) | Anthropic API; Phi Silica on Copilot+ |
-| Project build | xcodegen + xcodebuild | `dotnet` / MSBuild (WinUI) |
-| Packaging | ad-hoc signed `.dmg` | MSIX + winget; code-signing cert |
-| Release CI | GitHub Actions `macos-26` | GitHub Actions `windows-latest` |
+| Concern | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| UI framework | SwiftUI + AppKit | Electron + TypeScript | WinUI 3 + C# |
+| Terminal widget | SwiftTerm | xterm.js | xterm.js in WebView2 |
+| PTY / process | SwiftTerm local process | node-pty | ConPTY pseudo-console |
+| Default shell | zsh | user `$SHELL` | PowerShell |
+| Shell integration | zsh OSC profile | bash/zsh OSC profiles | PowerShell OSC profile |
+| Delete → recoverable | macOS Trash | desktop trash planned | Recycle Bin |
+| Restore a delete | move from Trash | planned | Recycle Bin restore |
+| List a directory | `FileManager` | main-process `fs` | `System.IO.Directory` |
+| Open a file/folder | `open` | Electron `shell.openPath` | `Invoke-Item` / Explorer |
+| Run git | `/usr/bin/git` | `git` subprocess | `git.exe` |
+| Process / port monitor | `ps` / `lsof` | planned | PowerShell process APIs |
+| Package manager | Homebrew | distribution-specific | winget or scoop |
+| Path quoting | POSIX single-quote | POSIX single-quote | PowerShell quoting |
+| On-device AI | FoundationModels | none | none |
+| Project build | xcodegen + xcodebuild | npm + esbuild | .NET / MSBuild |
+| Packaging | `.dmg` | AppImage, `.deb`, `.rpm` | MSIX planned |
+| Release CI | `macos-26` | `ubuntu-24.04` | planned |
 
 ## Interfaces the Core should expose (so logic is testable on macOS)
 

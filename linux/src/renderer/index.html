@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
+    <title>FriendlyTerminal</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="app" class="app-shell sidebar-visible">
+      <header class="topbar">
+        <button id="sidebar-toggle" class="icon-button" type="button" aria-label="Toggle sidebar" title="Toggle sidebar (Ctrl+B)">☰</button>
+        <div class="brand" aria-label="FriendlyTerminal">
+          <span class="brand-mark" aria-hidden="true">›_</span>
+          <span class="brand-name">FriendlyTerminal</span>
+        </div>
+        <nav id="tabs" class="tabs" aria-label="Terminal tabs"></nav>
+        <button id="new-tab" class="icon-button" type="button" aria-label="New tab" title="New tab (Ctrl+Shift+T)">＋</button>
+        <div class="topbar-actions">
+          <button id="split-pane" class="toolbar-button" type="button" title="Split pane (Ctrl+Shift+D)"><span aria-hidden="true">▥</span><span>Split</span></button>
+          <button id="find-terminal" class="icon-button" type="button" aria-label="Find in terminal" title="Find in terminal (Ctrl+Shift+F)">⌕</button>
+          <button id="open-palette" class="toolbar-button accent" type="button" title="Explore commands (Ctrl+Shift+P)"><span aria-hidden="true">⌘</span><span>Commands</span></button>
+          <button id="open-settings" class="icon-button" type="button" aria-label="Settings" title="Settings">⚙</button>
+        </div>
+      </header>
+
+      <div id="terminal-search" class="terminal-search" hidden>
+        <input id="terminal-search-input" type="search" autocomplete="off" spellcheck="false" placeholder="Find in this terminal">
+        <button id="terminal-search-next" class="small-button" type="button">Next</button>
+        <button id="terminal-search-close" class="icon-button" type="button" aria-label="Close search">×</button>
+      </div>
+
+      <div class="locationbar">
+        <span class="location-label">Working folder</span>
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Current working directory"></nav>
+        <div id="git-pill" class="git-pill" hidden></div>
+      </div>
+
+      <main class="main-layout">
+        <aside id="sidebar" class="sidebar">
+          <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
+            <button class="sidebar-tab active" type="button" role="tab" data-panel="files" aria-selected="true">Files</button>
+            <button class="sidebar-tab" type="button" role="tab" data-panel="git" aria-selected="false">Git</button>
+            <button class="sidebar-tab" type="button" role="tab" data-panel="history" aria-selected="false">History</button>
+          </div>
+          <section id="files-panel" class="sidebar-panel active" aria-label="Files">
+            <div class="panel-heading">
+              <strong>Files</strong>
+              <button id="refresh-files" class="icon-button small" type="button" aria-label="Refresh files" title="Refresh">↻</button>
+            </div>
+            <div id="file-list" class="file-list"></div>
+          </section>
+          <section id="git-panel" class="sidebar-panel" aria-label="Git status">
+            <div class="panel-heading"><strong>Repository</strong></div>
+            <div id="git-details" class="empty-state">This folder is not inside a Git repository.</div>
+          </section>
+          <section id="history-panel" class="sidebar-panel" aria-label="Command history">
+            <div class="panel-heading">
+              <strong>Recent commands</strong>
+              <button id="clear-history" class="text-button" type="button">Clear</button>
+            </div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+          <footer class="sidebar-footer">
+            <label class="checkbox-row"><input id="show-hidden" type="checkbox"> Show hidden files</label>
+          </footer>
+        </aside>
+
+        <section id="workspaces" class="workspaces" aria-label="Terminal panes">
+          <div id="loading" class="loading-state">
+            <span class="loading-mark">›_</span>
+            <span>Starting your shell…</span>
+          </div>
+        </section>
+      </main>
+
+      <footer class="command-dock">
+        <div class="command-dock-icon" aria-hidden="true">›</div>
+        <div class="command-input-wrap">
+          <label for="command-input">Run a command</label>
+          <input id="command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type a command, or press Ctrl+Shift+P to explore">
+        </div>
+        <button id="command-help" class="small-button" type="button">Find a command</button>
+        <button id="run-command" class="run-button" type="button">Run <span aria-hidden="true">↵</span></button>
+      </footer>
+    </div>
+
+    <dialog id="command-dialog" class="modal command-modal">
+      <div class="modal-header">
+        <div><p class="eyebrow">Command guide</p><h1>What do you want to do?</h1></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Close">×</button>
+      </div>
+      <input id="command-search" class="modal-search" type="search" autocomplete="off" spellcheck="false" placeholder="Try “find a file”, “disk space”, or “undo git add”">
+      <div id="command-results" class="command-results"></div>
+      <p class="modal-hint">Selecting a command fills the command bar. You stay in control and choose when to run it.</p>
+    </dialog>
+
+    <dialog id="settings-dialog" class="modal settings-modal">
+      <div class="modal-header">
+        <div><p class="eyebrow">Preferences</p><h1>Make it yours</h1></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="settings-list">
+        <label class="setting-row"><span><strong>Terminal text size</strong><small>Adjust every open pane</small></span><input id="font-size" type="range" min="11" max="24" step="1"><output id="font-size-output"></output></label>
+        <label class="setting-row"><span><strong>Show hidden files</strong><small>Include names beginning with a dot</small></span><input id="settings-show-hidden" type="checkbox"></label>
+        <label class="setting-row"><span><strong>Confirm closing busy panes</strong><small>Protect work when a command may be running</small></span><input id="confirm-close" type="checkbox"></label>
+      </div>
+      <div class="about-row"><span>FriendlyTerminal for Linux</span><span id="app-version"></span></div>
+    </dialog>
+
+    <dialog id="welcome-dialog" class="modal welcome-modal">
+      <div class="welcome-mark" aria-hidden="true">›_</div>
+      <p class="eyebrow">Welcome to FriendlyTerminal</p>
+      <h1>A terminal that helps you move.</h1>
+      <p class="welcome-copy">Use a real shell with a file browser, Git context, discoverable commands, tabs, and split panes—all without giving up terminal power.</p>
+      <div class="welcome-grid">
+        <div><kbd>Ctrl K</kbd><span>Jump to the command bar</span></div>
+        <div><kbd>Ctrl ⇧ P</kbd><span>Find the right command</span></div>
+        <div><kbd>Ctrl ⇧ D</kbd><span>Split your workspace</span></div>
+      </div>
+      <button id="welcome-start" class="run-button wide" type="button">Start exploring</button>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
