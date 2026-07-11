@@ -11,11 +11,16 @@ history.
 - Real PTY behavior for SSH, vim, nano, htop, less, REPLs, and other interactive
   programs.
 - Tabs and up to four independent split panes per workspace.
+- Sidebar with the file browser on top and searchable command help below,
+  matching the macOS and Windows layout.
 - File browser with hidden-file controls, breadcrumb navigation, file opening,
   and reveal-in-file-manager actions.
-- Live Git branch, changed-file, ahead, and behind context.
+- Live Git branch, changed-file, ahead, and behind context in a popover on the
+  location-bar branch button.
 - Searchable plain-language command guide with destructive-command warnings.
-- Command history with success and failure state for bash and zsh.
+- Command history with success and failure state for bash and zsh, shown as
+  recent commands in the command guide.
+- GNOME-style dark interface using the default GNOME Terminal color palette.
 - Find in terminal, automatic link detection, copy-on-select, and familiar
   keyboard shortcuts.
 - Persistent font size, hidden-file, and close-confirmation preferences.
