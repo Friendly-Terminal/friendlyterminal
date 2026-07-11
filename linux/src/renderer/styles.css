@@ -1,23 +1,32 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --bg: #101112;
-  --surface: #17191a;
-  --surface-raised: #1d2021;
-  --surface-hover: #25292a;
-  --border: #2c3031;
-  --border-strong: #3a4041;
-  --text: #eeeae0;
-  --muted: #9d9f9a;
-  --subtle: #6d716f;
-  --amber: #f5b544;
-  --amber-strong: #ffc35d;
-  --amber-soft: rgba(245, 181, 68, 0.12);
-  --green: #8fcf6b;
-  --red: #f07178;
-  --blue: #73d0ff;
+  font-family: "Cantarell", "Ubuntu", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Source Code Pro", "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+  --bg: #242424;
+  --bg-sunken: #1e1e1e;
+  --headerbar: #303030;
+  --sidebar: #2a2a2a;
+  --surface: #303030;
+  --surface-raised: #383838;
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --surface-active: rgba(255, 255, 255, 0.13);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --text: rgba(255, 255, 255, 0.86);
+  --text-strong: #ffffff;
+  --muted: rgba(255, 255, 255, 0.58);
+  --subtle: rgba(255, 255, 255, 0.38);
+  --accent: #3584e4;
+  --accent-hover: #4a90e9;
+  --accent-soft: rgba(53, 132, 228, 0.16);
+  --accent-fg: #ffffff;
+  --green: #26a269;
+  --yellow: #e5a50a;
+  --red: #e01b24;
+  --red-strong: #c01c28;
+  --red-soft: rgba(224, 27, 36, 0.14);
   --sidebar-width: 286px;
-  --radius: 10px;
+  --radius: 8px;
 }
 
 * {
@@ -51,7 +60,7 @@ button {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -64,7 +73,7 @@ input:focus-visible {
   grid-template-rows: 48px 38px minmax(0, 1fr) 64px;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 75% -30%, rgba(245, 181, 68, 0.07), transparent 34%), var(--bg);
+  background: var(--bg);
 }
 
 .topbar {
@@ -74,7 +83,7 @@ input:focus-visible {
   min-width: 0;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
-  background: rgba(23, 25, 26, 0.95);
+  background: var(--headerbar);
   user-select: none;
 }
 
@@ -84,7 +93,6 @@ input:focus-visible {
   gap: 9px;
   flex: 0 0 auto;
   padding-right: 9px;
-  border-right: 1px solid var(--border);
 }
 
 .brand-mark,
@@ -92,24 +100,23 @@ input:focus-visible {
 .welcome-mark {
   display: inline-grid;
   place-items: center;
-  color: #181511;
-  background: var(--amber);
-  font-family: "JetBrains Mono", monospace;
-  font-weight: 900;
-  letter-spacing: -2px;
+  color: #ffffff;
+  background: #1a1a1a;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .brand-mark {
-  width: 27px;
-  height: 27px;
-  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   font-size: 12px;
 }
 
 .brand-name {
   font-size: 13px;
-  font-weight: 720;
-  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 .tabs {
@@ -141,14 +148,14 @@ input:focus-visible {
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--surface-hover);
   color: var(--text);
 }
 
 .tab.active {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom-color: var(--amber);
+  color: var(--text-strong);
+  background: var(--surface-hover);
+  border-bottom-color: var(--accent);
 }
 
 .tab-status {
@@ -164,8 +171,7 @@ input:focus-visible {
 }
 
 .tab.busy .tab-status {
-  background: var(--amber);
-  box-shadow: 0 0 0 4px var(--amber-soft);
+  background: var(--yellow);
 }
 
 .tab-title {
@@ -175,7 +181,7 @@ input:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  font-weight: 620;
+  font-weight: 500;
 }
 
 .tab-close {
@@ -183,7 +189,7 @@ input:focus-visible {
   place-items: center;
   width: 19px;
   height: 19px;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--subtle);
   font-size: 16px;
 }
@@ -205,9 +211,9 @@ input:focus-visible {
 .small-button,
 .text-button,
 .run-button {
-  border-radius: 7px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
 }
 
 .icon-button {
@@ -219,7 +225,7 @@ input:focus-visible {
   padding: 0;
   color: var(--muted);
   background: transparent;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .icon-button:hover,
@@ -232,7 +238,7 @@ input:focus-visible {
 .icon-button.small {
   width: 25px;
   height: 25px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .toolbar-button {
@@ -244,31 +250,34 @@ input:focus-visible {
   color: var(--muted);
   background: transparent;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .toolbar-button.accent {
-  color: var(--amber-strong);
-  background: var(--amber-soft);
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.toolbar-button.accent:hover {
+  color: var(--accent-fg);
+  background: var(--accent-hover);
 }
 
 .locationbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
-  background: #141617;
+  background: var(--bg-sunken);
 }
 
 .location-label {
   flex: 0 0 auto;
   color: var(--subtle);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 11px;
 }
 
 .breadcrumbs {
@@ -281,23 +290,22 @@ input:focus-visible {
 
 .breadcrumbs button {
   flex: 0 0 auto;
-  padding: 3px 5px;
+  padding: 3px 6px;
   border-radius: 5px;
   color: var(--muted);
   background: transparent;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .breadcrumbs button:last-child {
   color: var(--text);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .breadcrumbs button:hover {
-  color: var(--amber-strong);
-  background: var(--amber-soft);
+  color: var(--text);
+  background: var(--surface-hover);
 }
 
 .breadcrumb-separator {
@@ -306,15 +314,41 @@ input:focus-visible {
 }
 
 .git-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
   margin-left: auto;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: 4px 9px;
+  border-radius: 6px;
   color: var(--muted);
-  background: var(--surface);
-  font-size: 10px;
-  font-weight: 650;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.git-pill:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.git-pill svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.git-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 12px;
+  width: 260px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .main-layout {
@@ -331,11 +365,11 @@ input:focus-visible {
 
 .sidebar {
   display: grid;
-  grid-template-rows: 37px minmax(0, 1fr) 40px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--sidebar);
   opacity: 0;
   transition: opacity 130ms ease;
 }
@@ -344,49 +378,19 @@ input:focus-visible {
   opacity: 1;
 }
 
-.sidebar-tabs {
+.sidebar-section {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-bottom: 1px solid var(--border);
-}
-
-.sidebar-tab {
-  position: relative;
-  color: var(--subtle);
-  background: transparent;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.sidebar-tab::after {
-  position: absolute;
-  right: 18px;
-  bottom: 0;
-  left: 18px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: transparent;
-  content: "";
-}
-
-.sidebar-tab.active {
-  color: var(--text);
-}
-
-.sidebar-tab.active::after {
-  background: var(--amber);
-}
-
-.sidebar-panel {
-  display: none;
   min-height: 0;
   overflow: hidden;
 }
 
-.sidebar-panel.active {
-  display: grid;
-  grid-template-rows: 39px minmax(0, 1fr);
+.files-section {
+  grid-template-rows: 39px minmax(0, 1fr) 34px;
+}
+
+.help-section {
+  grid-template-rows: 39px auto minmax(0, 1fr);
+  border-top: 1px solid var(--border);
 }
 
 .panel-heading {
@@ -394,15 +398,15 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding: 0 10px 0 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 11px;
 }
 
 .panel-heading strong {
   color: var(--text);
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .file-list,
@@ -426,8 +430,8 @@ input:focus-visible {
 }
 
 .file-row {
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  gap: 7px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
   height: 29px;
   padding: 0 7px;
 }
@@ -439,13 +443,18 @@ input:focus-visible {
 }
 
 .file-icon {
-  color: #85919a;
-  font-size: 8px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--subtle);
+}
+
+.file-icon svg {
+  width: 12px;
+  height: 12px;
 }
 
 .file-icon.folder {
-  color: var(--amber);
-  transform: rotate(45deg) scale(0.75);
+  color: #8ab4d8;
 }
 
 .file-name {
@@ -458,7 +467,7 @@ input:focus-visible {
 
 .file-meta {
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .sidebar-footer {
@@ -467,7 +476,7 @@ input:focus-visible {
   padding: 0 12px;
   border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .checkbox-row {
@@ -479,7 +488,52 @@ input:focus-visible {
 input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: var(--amber);
+  accent-color: var(--accent);
+}
+
+.help-search {
+  padding: 8px 10px;
+}
+
+.help-search input {
+  width: 100%;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  font-size: 11px;
+}
+
+.help-search input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.help-results {
+  min-height: 0;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+}
+
+.help-results .command-group h2 {
+  margin: 10px 6px 4px;
+}
+
+.help-results .command-result {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-height: 0;
+  padding: 6px 8px;
+}
+
+.help-results .command-result span {
+  font-size: 10px;
+}
+
+.help-results .danger-label {
+  justify-self: start;
 }
 
 .empty-state,
@@ -503,7 +557,7 @@ input[type="checkbox"] {
 .list-note {
   padding: 10px;
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -516,13 +570,25 @@ input[type="checkbox"] {
   background: var(--surface-raised);
 }
 
+.git-popover .git-card {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
 .git-branch {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: var(--amber);
+  color: var(--accent);
   font-size: 13px;
+}
+
+.git-branch svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }
 
 .git-branch strong {
@@ -544,29 +610,28 @@ input[type="checkbox"] {
 }
 
 .git-summary.changed {
-  color: var(--amber-strong);
+  color: var(--yellow);
 }
 
 .git-actions {
   display: grid;
-  gap: 5px;
+  gap: 3px;
   margin-top: 14px;
 }
 
 .git-actions button {
   padding: 7px 8px;
-  border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--muted);
-  background: var(--surface);
-  font-size: 10px;
+  background: transparent;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
 }
 
 .git-actions button:hover {
   color: var(--text);
-  border-color: var(--border-strong);
+  background: var(--surface-hover);
 }
 
 .history-row {
@@ -580,7 +645,7 @@ input[type="checkbox"] {
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -588,7 +653,7 @@ input[type="checkbox"] {
 
 .history-row time {
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .history-status {
@@ -607,13 +672,15 @@ input[type="checkbox"] {
 
 .text-button {
   padding: 3px 5px;
+  border-radius: 5px;
   color: var(--subtle);
   background: transparent;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .text-button:hover {
   color: var(--text);
+  background: var(--surface-hover);
 }
 
 .workspaces {
@@ -666,12 +733,12 @@ input[type="checkbox"] {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--bg-sunken);
   box-shadow: inset 0 0 0 1px transparent;
 }
 
 .terminal-pane.active {
-  box-shadow: inset 0 0 0 1px rgba(245, 181, 68, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(53, 132, 228, 0.55);
 }
 
 .pane-header {
@@ -682,22 +749,21 @@ input[type="checkbox"] {
   padding: 0 5px 0 9px;
   border-bottom: 1px solid var(--border);
   color: var(--subtle);
-  background: #131516;
+  background: var(--headerbar);
   user-select: none;
 }
 
 .terminal-pane.active .pane-header {
   color: var(--muted);
-  background: #171817;
+  background: var(--surface);
 }
 
 .pane-identity {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-size: 10.5px;
+  font-weight: 500;
 }
 
 .status-dot {
@@ -713,8 +779,8 @@ input[type="checkbox"] {
 
 .pane-path {
   overflow: hidden;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -748,7 +814,7 @@ input[type="checkbox"] {
   gap: 9px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--headerbar);
 }
 
 .command-dock-icon {
@@ -757,10 +823,11 @@ input[type="checkbox"] {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  color: var(--amber);
-  background: var(--amber-soft);
-  font-family: monospace;
-  font-weight: 900;
+  color: #ffffff;
+  background: #1a1a1a;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .command-input-wrap {
@@ -770,13 +837,11 @@ input[type="checkbox"] {
 
 .command-input-wrap label {
   position: absolute;
-  top: 5px;
+  top: 6px;
   left: 11px;
   color: var(--subtle);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 500;
   pointer-events: none;
 }
 
@@ -787,40 +852,38 @@ input[type="checkbox"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
-  background: var(--bg);
-  font-family: "JetBrains Mono", monospace;
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
 .command-input-wrap input:focus {
-  border-color: rgba(245, 181, 68, 0.7);
+  border-color: var(--accent);
   outline: none;
-  box-shadow: 0 0 0 3px var(--amber-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .small-button {
   height: 31px;
   padding: 0 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   color: var(--muted);
-  background: var(--surface-raised);
-  font-size: 10px;
-  font-weight: 650;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .run-button {
   height: 38px;
   padding: 0 15px;
-  color: #17130d;
-  background: var(--amber);
-  font-size: 11px;
-  font-weight: 800;
-  box-shadow: 0 4px 18px rgba(245, 181, 68, 0.1);
+  color: var(--accent-fg);
+  background: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .run-button:hover {
-  background: var(--amber-strong);
-  transform: translateY(-1px);
+  background: var(--accent-hover);
 }
 
 .run-button.wide {
@@ -842,7 +905,7 @@ input[type="checkbox"] {
   border: 1px solid var(--border-strong);
   border-radius: 9px;
   background: var(--surface-raised);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .terminal-search input {
@@ -851,7 +914,7 @@ input[type="checkbox"] {
   padding: 0 9px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--bg-sunken);
   font-size: 11px;
 }
 
@@ -865,15 +928,14 @@ input[type="checkbox"] {
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border-strong);
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--text);
   background: var(--surface);
-  box-shadow: 0 26px 100px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
 }
 
 .modal::backdrop {
-  background: rgba(5, 6, 6, 0.74);
-  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .modal-header {
@@ -885,17 +947,15 @@ input[type="checkbox"] {
 
 .modal h1 {
   margin: 2px 0 0;
-  font-size: 22px;
-  letter-spacing: -0.035em;
+  font-size: 21px;
+  font-weight: 700;
 }
 
 .eyebrow {
   margin: 0;
-  color: var(--amber);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .modal-search {
@@ -904,15 +964,15 @@ input[type="checkbox"] {
   margin: 0 22px 14px;
   padding: 0 14px;
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: var(--bg);
+  border-radius: 8px;
+  background: var(--bg-sunken);
   font-size: 13px;
 }
 
 .modal-search:focus {
-  border-color: var(--amber);
+  border-color: var(--accent);
   outline: none;
-  box-shadow: 0 0 0 3px var(--amber-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .command-results {
@@ -921,12 +981,33 @@ input[type="checkbox"] {
   overflow-y: auto;
 }
 
+.command-history {
+  padding: 0 22px;
+}
+
+.command-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 8px 6px;
+}
+
+.command-history-heading h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.command-history .history-list {
+  max-height: 150px;
+}
+
 .command-group h2 {
   margin: 14px 8px 6px;
-  color: var(--subtle);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .command-result {
@@ -951,8 +1032,8 @@ input[type="checkbox"] {
 
 .command-result code {
   overflow: hidden;
-  color: var(--amber-strong);
-  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+  font-family: var(--font-mono);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -966,9 +1047,8 @@ input[type="checkbox"] {
   padding: 3px 6px;
   border-radius: 4px;
   color: var(--red);
-  background: rgba(240, 113, 120, 0.1);
-  font-size: 8px;
-  text-transform: uppercase;
+  background: var(--red-soft);
+  font-size: 9px;
 }
 
 .modal-hint {
@@ -976,8 +1056,8 @@ input[type="checkbox"] {
   padding: 11px 22px;
   border-top: 1px solid var(--border);
   color: var(--subtle);
-  background: #141617;
-  font-size: 9px;
+  background: var(--bg-sunken);
+  font-size: 10px;
 }
 
 .settings-modal {
@@ -1004,6 +1084,7 @@ input[type="checkbox"] {
 
 .setting-row strong {
   font-size: 12px;
+  font-weight: 600;
 }
 
 .setting-row small {
@@ -1013,13 +1094,13 @@ input[type="checkbox"] {
 
 .setting-row input[type="range"] {
   width: 130px;
-  accent-color: var(--amber);
+  accent-color: var(--accent);
 }
 
 .setting-row output {
   width: 34px;
   color: var(--muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 
@@ -1029,7 +1110,7 @@ input[type="checkbox"] {
   padding: 13px 22px;
   border-top: 1px solid var(--border);
   color: var(--subtle);
-  background: #141617;
+  background: var(--bg-sunken);
   font-size: 10px;
 }
 
@@ -1040,16 +1121,17 @@ input[type="checkbox"] {
 }
 
 .welcome-mark {
-  width: 58px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 18px;
-  border-radius: 16px;
-  font-size: 17px;
+  border-radius: 14px;
+  font-size: 16px;
 }
 
 .welcome-modal h1 {
   margin-top: 7px;
-  font-size: 29px;
+  font-size: 26px;
+  font-weight: 700;
 }
 
 .welcome-copy {
@@ -1081,9 +1163,9 @@ input[type="checkbox"] {
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
   border-radius: 5px;
-  color: var(--amber-strong);
-  background: var(--bg);
-  font: 700 10px "JetBrains Mono", monospace;
+  color: var(--text);
+  background: var(--bg-sunken);
+  font: 600 10px var(--font-mono);
 }
 
 .welcome-grid span {
@@ -1104,11 +1186,11 @@ input[type="checkbox"] {
 .toast {
   padding: 11px 13px;
   border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--amber);
+  border-left: 3px solid var(--accent);
   border-radius: 8px;
   color: var(--text);
   background: var(--surface-raised);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   font-size: 11px;
   animation: toast-in 180ms ease-out;
 }
@@ -1150,6 +1232,7 @@ input[type="checkbox"] {
   }
 
   .git-pill,
+  .git-popover,
   .location-label {
     display: none;
   }
