@@ -11,17 +11,17 @@
   <body>
     <div id="app" class="app-shell sidebar-visible">
       <header class="topbar">
-        <button id="sidebar-toggle" class="icon-button" type="button" aria-label="Toggle sidebar" title="Toggle sidebar (Ctrl+B)">☰</button>
+        <button id="sidebar-toggle" class="icon-button" type="button" aria-label="Toggle sidebar" title="Toggle sidebar (Ctrl+B)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><line x1="6" y1="2.5" x2="6" y2="13.5"/></svg></button>
         <div class="brand" aria-label="FriendlyTerminal">
           <span class="brand-mark" aria-hidden="true">›_</span>
           <span class="brand-name">FriendlyTerminal</span>
         </div>
         <nav id="tabs" class="tabs" aria-label="Terminal tabs"></nav>
-        <button id="new-tab" class="icon-button" type="button" aria-label="New tab" title="New tab (Ctrl+Shift+T)">＋</button>
+        <button id="new-tab" class="icon-button" type="button" aria-label="New tab" title="New tab (Ctrl+Shift+T)">+</button>
         <div class="topbar-actions">
-          <button id="split-pane" class="toolbar-button" type="button" title="Split pane (Ctrl+Shift+D)"><span aria-hidden="true">▥</span><span>Split</span></button>
-          <button id="find-terminal" class="icon-button" type="button" aria-label="Find in terminal" title="Find in terminal (Ctrl+Shift+F)">⌕</button>
-          <button id="open-palette" class="toolbar-button accent" type="button" title="Explore commands (Ctrl+Shift+P)"><span aria-hidden="true">⌘</span><span>Commands</span></button>
+          <button id="split-pane" class="toolbar-button" type="button" title="Split pane (Ctrl+Shift+D)"><span aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg></span><span>Split</span></button>
+          <button id="find-terminal" class="icon-button" type="button" aria-label="Find in terminal" title="Find in terminal (Ctrl+Shift+F)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="13.5" y2="13.5"/></svg></button>
+          <button id="open-palette" class="toolbar-button accent" type="button" title="Explore commands (Ctrl+Shift+P)"><span aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l4 4-4 4"/><path d="M9 12h4"/></svg></span><span>Commands</span></button>
           <button id="open-settings" class="icon-button" type="button" aria-label="Settings" title="Settings">⚙</button>
         </div>
       </header>
@@ -35,37 +35,34 @@
       <div class="locationbar">
         <span class="location-label">Working folder</span>
         <nav id="breadcrumbs" class="breadcrumbs" aria-label="Current working directory"></nav>
-        <div id="git-pill" class="git-pill" hidden></div>
+        <button id="git-pill" class="git-pill" type="button" aria-haspopup="true" aria-expanded="false" hidden></button>
+        <div id="git-popover" class="git-popover" hidden>
+          <div id="git-details" class="empty-state">This folder is not inside a Git repository.</div>
+        </div>
       </div>
 
       <main class="main-layout">
         <aside id="sidebar" class="sidebar">
-          <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
-            <button class="sidebar-tab active" type="button" role="tab" data-panel="files" aria-selected="true">Files</button>
-            <button class="sidebar-tab" type="button" role="tab" data-panel="git" aria-selected="false">Git</button>
-            <button class="sidebar-tab" type="button" role="tab" data-panel="history" aria-selected="false">History</button>
-          </div>
-          <section id="files-panel" class="sidebar-panel active" aria-label="Files">
+          <section id="files-panel" class="sidebar-section files-section" aria-label="Files">
             <div class="panel-heading">
               <strong>Files</strong>
               <button id="refresh-files" class="icon-button small" type="button" aria-label="Refresh files" title="Refresh">↻</button>
             </div>
             <div id="file-list" class="file-list"></div>
+            <footer class="sidebar-footer">
+              <label class="checkbox-row"><input id="show-hidden" type="checkbox"> Show hidden files</label>
+            </footer>
           </section>
-          <section id="git-panel" class="sidebar-panel" aria-label="Git status">
-            <div class="panel-heading"><strong>Repository</strong></div>
-            <div id="git-details" class="empty-state">This folder is not inside a Git repository.</div>
-          </section>
-          <section id="history-panel" class="sidebar-panel" aria-label="Command history">
+          <section id="help-panel" class="sidebar-section help-section" aria-label="Command help">
             <div class="panel-heading">
-              <strong>Recent commands</strong>
-              <button id="clear-history" class="text-button" type="button">Clear</button>
+              <strong>Help with…</strong>
+              <button id="open-guide" class="icon-button small" type="button" aria-label="Open the full command guide" title="Full command guide (Ctrl+Shift+P)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2H2v4"/><path d="M10 14h4v-4"/><path d="M2 14l4.5-4.5M14 2L9.5 6.5"/></svg></button>
             </div>
-            <div id="history-list" class="history-list"></div>
+            <div class="help-search">
+              <input id="help-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search commands">
+            </div>
+            <div id="help-results" class="help-results"></div>
           </section>
-          <footer class="sidebar-footer">
-            <label class="checkbox-row"><input id="show-hidden" type="checkbox"> Show hidden files</label>
-          </footer>
         </aside>
 
         <section id="workspaces" class="workspaces" aria-label="Terminal panes">
@@ -93,6 +90,13 @@
         <button class="icon-button dialog-close" type="button" aria-label="Close">×</button>
       </div>
       <input id="command-search" class="modal-search" type="search" autocomplete="off" spellcheck="false" placeholder="Try “find a file”, “disk space”, or “undo git add”">
+      <div id="history-block" class="command-history" hidden>
+        <div class="command-history-heading">
+          <h2>Recent commands</h2>
+          <button id="clear-history" class="text-button" type="button">Clear</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </div>
       <div id="command-results" class="command-results"></div>
       <p class="modal-hint">Selecting a command fills the command bar. You stay in control and choose when to run it.</p>
     </dialog>

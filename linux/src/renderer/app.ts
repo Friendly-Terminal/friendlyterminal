@@ -30,6 +30,10 @@ const defaultPreferences: Preferences = { fontSize: 14, showHidden: false, confi
 const maximumPanes = 4;
 const maximumHistoryEntries = 100;
 
+const folderIcon = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.4l1.1 1.4h6.5a1 1 0 0 1 1 1v7.1a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8.5z"/></svg>`;
+const fileIcon = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 1.5h6l3 3v9a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"/><path d="M9.5 1.5v3h3"/></svg>`;
+const gitBranchIcon = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="3.5" r="1.8"/><circle cx="4" cy="12.5" r="1.8"/><circle cx="12" cy="6.5" r="1.8"/><path d="M4 5.3V10.7M4 7c0 2 1.5 3 4 3h2.2M12 8.3V6.5"/></svg>`;
+
 class FriendlyTerminalApp {
   private readonly panes = new Map<string, TerminalPane>();
   private readonly workspaces: Workspace[] = [];
@@ -44,9 +48,13 @@ class FriendlyTerminalApp {
   private readonly workspacesHost = requiredElement<HTMLElement>("workspaces");
   private readonly breadcrumbs = requiredElement<HTMLElement>("breadcrumbs");
   private readonly fileList = requiredElement<HTMLElement>("file-list");
-  private readonly gitPill = requiredElement<HTMLElement>("git-pill");
+  private readonly gitPill = requiredElement<HTMLButtonElement>("git-pill");
+  private readonly gitPopover = requiredElement<HTMLElement>("git-popover");
   private readonly gitDetails = requiredElement<HTMLElement>("git-details");
+  private readonly historyBlock = requiredElement<HTMLElement>("history-block");
   private readonly historyList = requiredElement<HTMLElement>("history-list");
+  private readonly helpSearch = requiredElement<HTMLInputElement>("help-search");
+  private readonly helpResults = requiredElement<HTMLElement>("help-results");
   private readonly commandInput = requiredElement<HTMLInputElement>("command-input");
   private readonly commandDialog = requiredElement<HTMLDialogElement>("command-dialog");
   private readonly commandSearch = requiredElement<HTMLInputElement>("command-search");
@@ -66,6 +74,7 @@ class FriendlyTerminalApp {
     this.bindIpc();
     this.applyPreferences();
     this.renderHistory();
+    this.renderHelp("");
     await this.createWorkspace();
     requiredElement("loading").remove();
     if (localStorage.getItem("friendlyterminal.welcomed") !== "true") {
@@ -81,6 +90,7 @@ class FriendlyTerminalApp {
     requiredElement("sidebar-toggle").addEventListener("click", () => this.toggleSidebar());
     requiredElement("open-palette").addEventListener("click", () => this.openCommandPalette());
     requiredElement("command-help").addEventListener("click", () => this.openCommandPalette());
+    requiredElement("open-guide").addEventListener("click", () => this.openCommandPalette());
     requiredElement("run-command").addEventListener("click", () => this.runCommandBar());
     requiredElement("open-settings").addEventListener("click", () => this.openSettings());
     requiredElement("refresh-files").addEventListener("click", () => void this.refreshContext());
@@ -102,6 +112,8 @@ class FriendlyTerminalApp {
       }
     });
     this.commandSearch.addEventListener("input", () => this.renderCommandResults(this.commandSearch.value));
+    this.helpSearch.addEventListener("input", () => this.renderHelp(this.helpSearch.value));
+    this.gitPill.addEventListener("click", () => this.toggleGitPopover());
     this.terminalSearchInput.addEventListener("input", () => this.searchTerminal());
     this.terminalSearchInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -113,8 +125,11 @@ class FriendlyTerminalApp {
     document.querySelectorAll<HTMLElement>(".dialog-close").forEach((button) => {
       button.addEventListener("click", () => button.closest("dialog")?.close());
     });
-    document.querySelectorAll<HTMLButtonElement>(".sidebar-tab").forEach((tab) => {
-      tab.addEventListener("click", () => this.selectSidebarPanel(tab.dataset.panel ?? "files"));
+    document.addEventListener("click", (event) => {
+      const target = event.target as Node;
+      if (!this.gitPopover.hidden && !this.gitPopover.contains(target) && !this.gitPill.contains(target)) {
+        this.setGitPopover(false);
+      }
     });
     const showHidden = requiredElement<HTMLInputElement>("show-hidden");
     showHidden.addEventListener("change", () => {
@@ -380,7 +395,7 @@ class FriendlyTerminalApp {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "file-row";
-    row.innerHTML = `<span class="file-icon ${entry.isDirectory ? "folder" : "file"}" aria-hidden="true">${entry.isDirectory ? "◆" : "▰"}</span><span class="file-name"></span><span class="file-meta"></span>`;
+    row.innerHTML = `<span class="file-icon ${entry.isDirectory ? "folder" : "file"}" aria-hidden="true">${entry.isDirectory ? folderIcon : fileIcon}</span><span class="file-name"></span><span class="file-meta"></span>`;
     row.querySelector<HTMLElement>(".file-name")!.textContent = entry.name;
     row.querySelector<HTMLElement>(".file-meta")!.textContent = entry.isDirectory ? "" : formatBytes(entry.size);
     row.title = entry.path;
@@ -417,16 +432,17 @@ class FriendlyTerminalApp {
   private renderGit(status: GitStatus | null): void {
     if (!status) {
       this.gitPill.hidden = true;
+      this.setGitPopover(false);
       this.gitDetails.className = "empty-state";
       this.gitDetails.textContent = "This folder is not inside a Git repository.";
       return;
     }
     this.gitPill.hidden = false;
-    this.gitPill.textContent = `⑂ ${status.branch}${status.changedFiles > 0 ? ` · ${status.changedFiles} changed` : " · clean"}`;
+    this.gitPill.innerHTML = `${gitBranchIcon}<span>${escapeHtml(status.branch)}${status.changedFiles > 0 ? ` · ${status.changedFiles} changed` : " · clean"}</span>`;
     const syncParts = [status.ahead > 0 ? `${status.ahead} ahead` : "", status.behind > 0 ? `${status.behind} behind` : ""].filter(Boolean).join(" · ");
     this.gitDetails.className = "git-card";
     this.gitDetails.innerHTML = `
-      <div class="git-branch"><span>⑂</span><strong>${escapeHtml(status.branch)}</strong></div>
+      <div class="git-branch">${gitBranchIcon}<strong>${escapeHtml(status.branch)}</strong></div>
       <div class="git-summary ${status.changedFiles === 0 ? "clean" : "changed"}">${status.changedFiles === 0 ? "Working tree is clean" : `${status.changedFiles} changed file${status.changedFiles === 1 ? "" : "s"}`}</div>
       ${syncParts ? `<div class="git-sync">${escapeHtml(syncParts)}</div>` : ""}
       <div class="git-actions"><button type="button" data-command="git status">Status</button><button type="button" data-command="git diff">Review changes</button><button type="button" data-command="git log --oneline --graph -20">History</button></div>
@@ -475,11 +491,13 @@ class FriendlyTerminalApp {
   private fillCommand(command: string): void {
     this.commandInput.value = command;
     this.commandDialog.close();
+    this.setGitPopover(false);
     this.commandInput.focus();
     this.commandInput.setSelectionRange(command.length, command.length);
   }
 
   private openCommandPalette(): void {
+    this.setGitPopover(false);
     this.commandSearch.value = "";
     this.renderCommandResults("");
     this.commandDialog.showModal();
@@ -487,12 +505,28 @@ class FriendlyTerminalApp {
   }
 
   private renderCommandResults(query: string): void {
+    this.historyBlock.hidden = query.trim().length > 0 || this.history.length === 0;
     const matches = searchCommands(query);
-    this.commandResults.replaceChildren();
     if (matches.length === 0) {
+      this.commandResults.replaceChildren();
       this.commandResults.innerHTML = `<div class="empty-state large">No matching commands. Try describing the outcome in different words.</div>`;
       return;
     }
+    this.renderCommandGroups(matches, this.commandResults);
+  }
+
+  private renderHelp(query: string): void {
+    const matches = searchCommands(query);
+    if (matches.length === 0) {
+      this.helpResults.replaceChildren();
+      this.helpResults.innerHTML = `<div class="empty-state">No commands match. Try describing the outcome in different words.</div>`;
+      return;
+    }
+    this.renderCommandGroups(matches, this.helpResults);
+  }
+
+  private renderCommandGroups(matches: CommandDefinition[], container: HTMLElement): void {
+    container.replaceChildren();
     const grouped = new Map<string, CommandDefinition[]>();
     for (const command of matches) {
       const group = grouped.get(command.category) ?? [];
@@ -513,12 +547,13 @@ class FriendlyTerminalApp {
         button.addEventListener("click", () => this.fillCommand(command.command));
         section.append(button);
       }
-      this.commandResults.append(section);
+      container.append(section);
     }
   }
 
   private renderHistory(): void {
     this.historyList.replaceChildren();
+    this.historyBlock.hidden = this.commandSearch.value.trim().length > 0 || this.history.length === 0;
     if (this.history.length === 0) {
       this.historyList.innerHTML = `<div class="empty-state">Commands you run will appear here for quick reuse.</div>`;
       return;
@@ -572,15 +607,13 @@ class FriendlyTerminalApp {
     }
   }
 
-  private selectSidebarPanel(panel: string): void {
-    document.querySelectorAll<HTMLElement>(".sidebar-tab").forEach((tab) => {
-      const selected = tab.dataset.panel === panel;
-      tab.classList.toggle("active", selected);
-      tab.setAttribute("aria-selected", String(selected));
-    });
-    document.querySelectorAll<HTMLElement>(".sidebar-panel").forEach((element) => {
-      element.classList.toggle("active", element.id === `${panel}-panel`);
-    });
+  private toggleGitPopover(): void {
+    this.setGitPopover(this.gitPopover.hidden);
+  }
+
+  private setGitPopover(open: boolean): void {
+    this.gitPopover.hidden = !open;
+    this.gitPill.setAttribute("aria-expanded", String(open));
   }
 
   private toggleSidebar(): void {
@@ -609,6 +642,10 @@ class FriendlyTerminalApp {
   }
 
   private handleShortcut(event: KeyboardEvent): void {
+    if (event.key === "Escape" && !this.gitPopover.hidden) {
+      this.setGitPopover(false);
+      return;
+    }
     if (!event.ctrlKey || event.altKey) {
       return;
     }
