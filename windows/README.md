@@ -20,6 +20,8 @@ windows/
 │   └── FriendlyTerminal.App/    WinUI 3 app: ConPTY backend, xterm.js in
 │                                WebView2, blocks UI, sidebar, panels
 ├── shell/                       PowerShell shell-integration profile
+├── scripts/                     release packaging: publish, portable zip,
+│                                Inno Setup installer (see app/README.md)
 ├── tests/
 │   └── FriendlyTerminal.Core.Tests/
 └── FriendlyTerminal.sln

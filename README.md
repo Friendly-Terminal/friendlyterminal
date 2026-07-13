@@ -146,6 +146,10 @@ cd windows\app\FriendlyTerminal.App
 msbuild FriendlyTerminal.App.csproj -restore -p:Platform=x64 -p:Configuration=Debug
 ```
 
+Produce the installer and portable archive with `windows\scripts\package.ps1`;
+artifacts are written to `windows/release/`. See
+[`windows/app/README.md`](windows/app/README.md) for details.
+
 ## Repository structure
 
 - `macos/` — SwiftUI, AppKit, SwiftTerm, models, and AI code for macOS.
@@ -158,6 +162,8 @@ msbuild FriendlyTerminal.App.csproj -restore -p:Platform=x64 -p:Configuration=De
 - `windows/src/FriendlyTerminal.Core/` — testable headless Windows logic.
 - `windows/app/FriendlyTerminal.App/` — WinUI, ConPTY, and WebView2 application.
 - `windows/tests/` — Windows core tests.
+- `windows/scripts/` — Windows release packaging (publish, portable zip, and
+  Inno Setup installer).
 - `docs/behavior-spec/` — platform-neutral behavior contract.
 - `.github/workflows/` — continuous integration and release packaging.
 
