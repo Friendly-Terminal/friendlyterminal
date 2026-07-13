@@ -46,9 +46,9 @@ if ($LASTEXITCODE -ne 0) { throw "msbuild publish failed with exit code $LASTEXI
 
 $binDir = Join-Path $projectDir "bin\$Platform\$Configuration"
 $publishDir = Get-ChildItem -Path $binDir -Recurse -Directory -Filter 'publish' -ErrorAction SilentlyContinue |
-    Where-Object { Test-Path (Join-Path $_.FullName 'FriendlyTerminal.App.exe') } |
+    Where-Object { $_.Parent.Name -eq $Rid -and (Test-Path (Join-Path $_.FullName 'FriendlyTerminal.App.exe')) } |
     Select-Object -First 1 -ExpandProperty FullName
-if (-not $publishDir) { throw "Could not locate publish output containing FriendlyTerminal.App.exe under $binDir" }
+if (-not $publishDir) { throw "Could not locate $Rid publish output containing FriendlyTerminal.App.exe under $binDir" }
 Write-Host "Publish output: $publishDir"
 
 New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
