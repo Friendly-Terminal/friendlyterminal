@@ -97,4 +97,5 @@ jobs:
             installer is unsigned, so SmartScreen may show "Windows protected your
             PC"; click **More info**, then **Run anyway**. It installs per-user with
             no administrator prompt. The portable `FriendlyTerminal-<version>-x64.zip`
-            is an alternative: extract it and run `FriendlyTerminal.App.exe`.
+            is an alternative: extract it and run `FriendlyTerminal.App.exe` from
+            the extracted `FriendlyTerminal` folder.

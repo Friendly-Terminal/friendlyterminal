@@ -40,7 +40,8 @@ generation requires the Visual Studio packaging tasks.
 `windows/scripts/package.ps1` publishes the app self-contained for x64 Release
 and produces two artifacts in `windows/release/`:
 
-- `FriendlyTerminal-<version>-x64.zip` — the portable publish output.
+- `FriendlyTerminal-<version>-x64.zip` — the portable publish output inside a
+  top-level `FriendlyTerminal` folder.
 - `FriendlyTerminal-Setup-<version>-x64.exe` — a per-user Inno Setup installer
   (`windows/scripts/installer.iss`) that needs no administrator rights.
 

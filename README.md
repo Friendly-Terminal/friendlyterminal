@@ -42,7 +42,7 @@ The packaged app does not require Node.js or development tools.
    shortcut.
 
 Prefer no installer? Download `FriendlyTerminal-<version>-x64.zip`, extract it,
-and run `FriendlyTerminal.App.exe`.
+and run `FriendlyTerminal.App.exe` from the extracted `FriendlyTerminal` folder.
 
 ## Features
 

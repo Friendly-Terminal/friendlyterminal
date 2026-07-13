@@ -39,7 +39,7 @@ if (-not $Version) {
         try {
             $inRepo = git -C $windowsDir rev-parse --is-inside-work-tree 2>$null
             if ("$inRepo".Trim() -eq 'true') {
-                $tag = git -C $windowsDir tag --points-at HEAD 2>$null | Select-Object -First 1
+                $tag = git -C $windowsDir tag --points-at HEAD --list 'v*' 2>$null | Select-Object -First 1
             }
         } catch {
             $tag = $null
@@ -80,7 +80,16 @@ New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
 $zipPath = Join-Path $releaseDir "FriendlyTerminal-$Version-x64.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
+$zipStageDir = Join-Path $releaseDir 'zip-stage'
+if (Test-Path $zipStageDir) { Remove-Item $zipStageDir -Recurse -Force }
+$zipRootDir = Join-Path $zipStageDir 'FriendlyTerminal'
+New-Item -ItemType Directory -Force -Path $zipRootDir | Out-Null
+try {
+    Copy-Item -Path (Join-Path $publishDir '*') -Destination $zipRootDir -Recurse
+    Compress-Archive -Path $zipRootDir -DestinationPath $zipPath
+} finally {
+    Remove-Item $zipStageDir -Recurse -Force
+}
 Write-Host "Portable archive: $zipPath"
 
 $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
