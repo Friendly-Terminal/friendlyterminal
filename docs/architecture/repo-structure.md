@@ -26,6 +26,7 @@ friendlyterminal/
 │
 └── windows/
     ├── src/FriendlyTerminal.Core/   headless C# logic, no UI, no Windows deps
+    ├── scripts/                      release packaging: installer + portable zip
     ├── tests/                        unit tests for the core
     └── README.md                     how to build/test (works on macOS too)
 ```
@@ -65,6 +66,8 @@ capabilities out of renderer code.
 - **Default shell:** PowerShell. WSL/bash is a later option.
 - **AI:** `FoundationModels` (Apple Intelligence) is Apple-only. Windows will
   call the Anthropic API, or Phi Silica on Copilot+ PCs. Stubbed for now.
+- **Packaging:** `windows/scripts/package.ps1` publishes a self-contained x64
+  build and produces a per-user Inno Setup installer plus a portable zip.
 
 Rejected alternatives: a web/Electron/Tauri rewrite (would mean retiring the
 polished macOS app), and Swift-on-Windows (no SwiftUI; immature UI bindings).

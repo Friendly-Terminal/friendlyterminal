@@ -21,8 +21,8 @@ must abstract behind interfaces so the logic stays portable and testable.
 | Path quoting | POSIX single-quote | POSIX single-quote | PowerShell quoting |
 | On-device AI | FoundationModels | none | none |
 | Project build | xcodegen + xcodebuild | npm + esbuild | .NET / MSBuild |
-| Packaging | `.dmg` | AppImage, `.deb`, `.rpm` | MSIX planned |
-| Release CI | `macos-26` | `ubuntu-24.04` | planned |
+| Packaging | `.dmg` | AppImage, `.deb`, `.rpm` | Inno Setup `.exe`, portable `.zip` |
+| Release CI | `macos-26` | `ubuntu-24.04` | `windows-latest` |
 
 ## Interfaces the Core should expose (so logic is testable on macOS)
 
