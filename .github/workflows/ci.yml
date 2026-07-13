@@ -22,9 +22,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: linux/package-lock.json
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes build-essential python3 rpm
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - run: npm run package
 
   windows-core:
     runs-on: ubuntu-24.04

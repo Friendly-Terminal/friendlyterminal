@@ -2,7 +2,8 @@
   "name": "friendlyterminal-linux",
   "version": "1.2.0",
   "description": "A friendly, modern terminal for Linux",
-  "author": "FriendlyTerminal contributors",
+  "author": "FriendlyTerminal contributors <Friendly-Terminal@users.noreply.github.com>",
+  "homepage": "https://github.com/Friendly-Terminal/friendlyterminal",
   "license": "GPL-3.0-only",
   "private": true,
   "main": "dist/main/index.js",
@@ -13,7 +14,7 @@
     "start": "electron .",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/**/*.test.ts",
-    "package": "npm run build && electron-builder --linux AppImage deb rpm",
+    "package": "npm run build && electron-builder --linux AppImage deb rpm --publish never",
     "package:dir": "npm run build && electron-builder --linux dir",
     "postinstall": "electron-builder install-app-deps"
   },
