@@ -26,6 +26,7 @@ friendlyterminal/
 │
 └── windows/
     ├── src/FriendlyTerminal.Core/   headless C# logic, no UI, no Windows deps
+    ├── scripts/                      release packaging: installer + portable zip
     ├── tests/                        unit tests for the core
     └── README.md                     how to build/test (works on macOS too)
 ```

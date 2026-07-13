@@ -1,4 +1,16 @@
 #requires -Version 5.1
+#
+# Publishes the WinUI 3 app self-contained for x64 Release and packages it into
+# a per-user Inno Setup installer (windows/scripts/installer.iss) and a portable
+# zip. Used by the GitHub Actions CI and release workflows, but you can also run
+# it locally from a Visual Studio developer prompt with Inno Setup 6 installed:
+#
+#     windows\scripts\package.ps1
+#
+# The finished artifacts are written to windows/release/. The version comes from
+# the current git tag (leading `v` stripped) when one is present, otherwise a
+# default; pass -Version to override.
+#
 [CmdletBinding()]
 param(
     [string]$Version,
