@@ -34,8 +34,15 @@ The packaged app does not require Node.js or development tools.
 
 ### Windows
 
-A prebuilt installer is not available yet. Follow the Windows source-build
-instructions below.
+1. Download `FriendlyTerminal-Setup-<version>-x64.exe` from the
+   [latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest).
+2. Run it. Because the installer is unsigned, SmartScreen may show **Windows
+   protected your PC**; click **More info**, then **Run anyway**.
+3. It installs per-user with no administrator prompt and adds a Start Menu
+   shortcut.
+
+Prefer no installer? Download `FriendlyTerminal-<version>-x64.zip`, extract it,
+and run `FriendlyTerminal.App.exe`.
 
 ## Features
 
@@ -166,8 +173,8 @@ raw-mode programs continue to control the terminal normally.
 ## Releases
 
 Pushing a version tag runs `.github/workflows/release.yml`, which builds the
-macOS disk image and Linux AppImage, Debian, and RPM packages, then attaches them
-to a GitHub Release:
+macOS disk image, the Linux AppImage, Debian, and RPM packages, and the Windows
+per-user installer and portable archive, then attaches them to a GitHub Release:
 
 ```sh
 git tag v1.2.0

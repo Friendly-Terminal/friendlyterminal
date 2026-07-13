@@ -35,6 +35,29 @@ The project is unpackaged and self-contained through
 .NET SDK can compile much of the project, but final Windows App SDK resource
 generation requires the Visual Studio packaging tasks.
 
+## Packaging a release
+
+`windows/scripts/package.ps1` publishes the app self-contained for x64 Release
+and produces two artifacts in `windows/release/`:
+
+- `FriendlyTerminal-<version>-x64.zip` — the portable publish output.
+- `FriendlyTerminal-Setup-<version>-x64.exe` — a per-user Inno Setup installer
+  (`windows/scripts/installer.iss`) that needs no administrator rights.
+
+Run it from a Visual Studio developer prompt with `msbuild` on the `PATH` and
+[Inno Setup 6](https://jrsoftware.org/isinfo.php) installed:
+
+```powershell
+windows\scripts\package.ps1
+```
+
+The version comes from the current git tag (leading `v` stripped) when one is
+present, otherwise a default; pass `-Version` to override. The
+[`release.yml`](../../.github/workflows/release.yml) `windows` job runs this
+script on `windows-latest` for tagged releases, and
+[`ci.yml`](../../.github/workflows/ci.yml) exercises the same publish and
+installer-compile path on every pull request.
+
 ## Key directories
 
 - `Pty/` — ConPTY handles, process startup, input, output, resize, and disposal.
@@ -46,5 +69,7 @@ generation requires the Visual Studio packaging tasks.
 ## Verification status
 
 The headless core is covered by the tests in `windows/tests`. The WinUI app must
-be built and exercised on Windows before publishing a Windows installer; the
-repository release workflow does not currently publish one.
+be built and exercised on Windows before publishing. Tagged releases publish a
+per-user installer and a portable archive through the `windows` job in
+[`release.yml`](../../.github/workflows/release.yml); see
+[Packaging a release](#packaging-a-release).

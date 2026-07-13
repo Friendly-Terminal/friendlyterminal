@@ -35,6 +35,17 @@ jobs:
           dotnet-version: 8.0.x
       - run: dotnet test windows/FriendlyTerminal.sln --configuration Release
 
+  windows-app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: microsoft/setup-msbuild@v2
+      - run: windows\scripts\package.ps1
+        shell: pwsh
+
   macos:
     runs-on: macos-26
     steps:
