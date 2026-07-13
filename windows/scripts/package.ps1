@@ -3,6 +3,7 @@
 param(
     [string]$Version,
     [string]$Configuration = 'Release',
+    [ValidateSet('x64')]
     [string]$Platform = 'x64'
 )
 
@@ -20,7 +21,19 @@ if (-not $Version) {
     if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME) {
         $Version = $env:GITHUB_REF_NAME
     } else {
-        $tag = git -C $windowsDir tag --points-at HEAD 2>$null | Select-Object -First 1
+        $tag = $null
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $inRepo = git -C $windowsDir rev-parse --is-inside-work-tree 2>$null
+            if ("$inRepo".Trim() -eq 'true') {
+                $tag = git -C $windowsDir tag --points-at HEAD 2>$null | Select-Object -First 1
+            }
+        } catch {
+            $tag = $null
+        } finally {
+            $ErrorActionPreference = $previousEap
+        }
         $Version = if ($tag) { $tag } else { '1.2.0' }
     }
 }
