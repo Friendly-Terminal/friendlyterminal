@@ -83,7 +83,9 @@ public sealed class ClaudeInstallChecker : INotifyPropertyChanged
             path = candidates.FirstOrDefault(File.Exists);
             if (path is null) return (null, null);
         }
-        var version = RunCapture("cmd.exe", "/c claude --version")?.Split('\n').FirstOrDefault()?.Trim();
+        // Invoke the resolved path, not bare `claude`: a fallback install isn't on
+        // PATH, so `claude --version` would be command-not-found. Quote for cmd.exe.
+        var version = RunCapture("cmd.exe", $"/c \"\"{path}\" --version\"")?.Split('\n').FirstOrDefault()?.Trim();
         return (path, version);
     }
 

@@ -20,13 +20,15 @@ function global:prompt {
     if ($global:__ftRan) {
         $exit = if ($ok) { 0 } elseif ($code) { $code } else { 1 }
         __ftOsc "133;D;$exit"
-        $global:LASTEXITCODE = 0
     }
     __ftOsc "133;A"
     __ftOsc "9;9;$((Get-Location).Path)"
     $text = & $global:__ftOriginalPrompt
     __ftOsc "133;B"
     $global:__ftRan = $false
+    # Restore the user's exit code so the integration stays transparent to scripts
+    # and prompts that read $LASTEXITCODE.
+    $global:LASTEXITCODE = $code
     return $text
 }
 

@@ -17,6 +17,7 @@ internal sealed class PtyConnection : IDisposable
     private Thread? _reader;
     private IntPtr _processHandle;
     private volatile bool _running;
+    private volatile bool _disposed;
 
     public event Action<byte[]>? OutputReceived;
 
@@ -76,13 +77,26 @@ internal sealed class PtyConnection : IDisposable
 
     public void WriteInput(string text)
     {
-        if (_writer is null) return;
-        var bytes = Encoding.UTF8.GetBytes(text);
-        _writer.Write(bytes, 0, bytes.Length);
-        _writer.Flush();
+        var writer = _writer;
+        if (writer is null || _disposed || !_running) return;
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            writer.Write(bytes, 0, bytes.Length);
+            writer.Flush();
+        }
+        // The shell can close its input pipe (e.g. after `exit`) before the UI stops
+        // sending; a broken pipe here is expected, not a crash.
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
-    public void Resize(int width, int height) => _console?.Resize(width, height);
+    public void Resize(int width, int height)
+    {
+        if (_disposed) return;
+        try { _console?.Resize(width, height); }
+        catch (ObjectDisposedException) { }
+    }
 
     private void ReadLoop()
     {
@@ -152,18 +166,26 @@ internal sealed class PtyConnection : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _running = false;
         _writer?.Dispose();
         _outputRead?.Dispose();
         _inputWrite?.Dispose();
         _console?.Dispose(); // tearing down the pseudoconsole signals the child to exit
 
-        if (_processHandle != IntPtr.Zero)
+        var handle = _processHandle;
+        _processHandle = IntPtr.Zero;
+        if (handle != IntPtr.Zero)
         {
-            // Give the child a moment to exit once its console is gone, then release the handle.
-            NativeMethods.WaitForSingleObject(_processHandle, 2000);
-            NativeMethods.CloseHandle(_processHandle);
-            _processHandle = IntPtr.Zero;
+            // Reap the child off the UI thread: waiting inline froze the window for up to
+            // 2s per pane. The console is already gone, so the child is exiting anyway;
+            // the background wait just releases its handle without leaking the process.
+            new Thread(() =>
+            {
+                NativeMethods.WaitForSingleObject(handle, 2000);
+                NativeMethods.CloseHandle(handle);
+            }) { IsBackground = true }.Start();
         }
     }
 }

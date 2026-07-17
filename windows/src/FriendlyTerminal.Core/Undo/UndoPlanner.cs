@@ -38,8 +38,9 @@ public sealed class UndoPlanner
                     new UndoAction.Shell($"cd {Q(cwd)}"));
 
             case "mkdir":
-                if (operands.Length == 0) return null;
+                if (!allowPreState || operands.Length == 0) return null;
                 var made = Resolve(operands[^1]);
+                if (_fs.Exists(made)) return null;
                 return One($"Undo: delete folder “{PathUtil.LastComponent(made)}”",
                     new UndoAction.Trash(made));
 
@@ -79,6 +80,8 @@ public sealed class UndoPlanner
                 if (!allowPreState || operands.Length != 2) return null;
                 var src = Resolve(operands[0]);
                 var dest = Resolve(operands[1]);
+                // Overwriting an existing file destroys it; moving back can't restore it.
+                if (_fs.Exists(dest) && !_fs.IsDirectory(dest)) return null;
                 var movedInto = _fs.Exists(dest) && _fs.IsDirectory(dest);
                 var finalDest = movedInto ? PathUtil.Combine(dest, PathUtil.LastComponent(src)) : dest;
                 if (movedInto && _fs.Exists(finalDest)) return null;
@@ -119,28 +122,32 @@ public sealed class UndoPlanner
             }
 
             case "zip":
-                if (operands.Length == 0) return null;
+                if (!allowPreState || operands.Length == 0) return null;
                 var archive = Resolve(operands[0]);
+                if (_fs.Exists(archive)) return null;
                 return One($"Undo: delete “{PathUtil.LastComponent(archive)}”",
                     new UndoAction.Trash(archive));
 
             case "tar":
             {
-                if (args.Length == 0 || !args[0].StartsWith('-') ||
+                if (!allowPreState || args.Length == 0 || !args[0].StartsWith('-') ||
                     !args[0].Contains('c') || !args[0].Contains('f')) return null;
                 var tarArchive = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-'));
                 if (tarArchive == null) return null;
                 var url = Resolve(tarArchive);
+                if (_fs.Exists(url)) return null;
                 return One($"Undo: delete “{PathUtil.LastComponent(url)}”",
                     new UndoAction.Trash(url));
             }
 
             case "curl":
             {
+                if (!allowPreState) return null;
                 var oIdx = Array.IndexOf(args, "-o");
                 if (oIdx >= 0 && oIdx + 1 < args.Length)
                 {
                     var url = Resolve(args[oIdx + 1]);
+                    if (_fs.Exists(url)) return null;
                     return One($"Undo: delete “{PathUtil.LastComponent(url)}”",
                         new UndoAction.Trash(url));
                 }
@@ -149,6 +156,7 @@ public sealed class UndoPlanner
                     var name = PathUtil.LastComponent(operands[^1]);
                     if (name.Length == 0) return null;
                     var url = Resolve(name);
+                    if (_fs.Exists(url)) return null;
                     return One($"Undo: delete “{name}”", new UndoAction.Trash(url));
                 }
                 return null;

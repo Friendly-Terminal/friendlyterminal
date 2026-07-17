@@ -118,4 +118,53 @@ public class ShellIntegrationStreamTests
         var events = FeedAll(stream, B("a\x1b]0;title\ab"));
         Assert.Equal("ab", string.Concat(events.OfType<ShellEvent.Output>().Select(o => o.Text)));
     }
+
+    [Fact]
+    public void Oversized_unterminated_osc_recovers_so_later_markers_still_parse()
+    {
+        var stream = new ShellIntegrationStream();
+
+        // A malformed OSC that never terminates, larger than the internal cap.
+        var junk = "\x1b]" + new string('x', 100_000);
+        var first = stream.Feed(B(junk));
+
+        // On overflow the buffered junk is flushed as plain output, not held forever.
+        Assert.Contains(first, e => e is ShellEvent.Output);
+
+        // A real command-end marker in the next chunk must be seen, not swallowed.
+        var second = stream.Feed(B("\x1b]133;D;7\a"));
+        Assert.Contains(second, e => e is ShellEvent.CommandEnd { ExitCode: 7 });
+    }
+
+    [Fact]
+    public void Unterminated_osc_under_cap_is_still_buffered_across_chunks()
+    {
+        var stream = new ShellIntegrationStream();
+        var b64 = Convert.ToBase64String(B("git status"));
+        var full = B($"\x1b]633;E;{b64}\a");
+
+        // Split mid-sequence: the first half has no terminator yet.
+        var first = stream.Feed(full.AsSpan(0, full.Length - 3).ToArray());
+        Assert.Empty(first.OfType<ShellEvent.CommandText>());
+
+        var second = stream.Feed(full.AsSpan(full.Length - 3).ToArray());
+        Assert.Equal("git status", Assert.IsType<ShellEvent.CommandText>(Assert.Single(second)).Text);
+    }
+
+    [Fact]
+    public void Oversized_unterminated_csi_recovers_so_later_markers_still_parse()
+    {
+        var stream = new ShellIntegrationStream();
+
+        // A malformed CSI that never reaches a final byte, larger than the internal cap.
+        var junk = "\x1b[" + new string('0', 100_000);
+        var first = stream.Feed(B(junk));
+
+        // On overflow the buffered junk is flushed as plain output, not held forever.
+        Assert.Contains(first, e => e is ShellEvent.Output);
+
+        // A real command-end marker in the next chunk must be seen, not swallowed.
+        var second = stream.Feed(B("\x1b]133;D;7\a"));
+        Assert.Contains(second, e => e is ShellEvent.CommandEnd { ExitCode: 7 });
+    }
 }

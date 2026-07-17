@@ -82,4 +82,52 @@ public class UndoPlannerTests
         Assert.Null(Planner().Plan("ls -la", Cwd));
         Assert.Null(Planner().Plan("git status", Cwd));
     }
+
+    [Fact]
+    public void Mkdir_force_over_existing_folder_offers_no_destructive_undo()
+    {
+        var fs = new FakeFileSystem().AddDir("/Users/test/project/build");
+        Assert.Null(Planner(fs).Plan("mkdir -Force build", Cwd));
+    }
+
+    [Fact]
+    public void Mkdir_without_pre_state_offers_no_undo()
+    {
+        Assert.Null(Planner().Plan("mkdir build", Cwd, allowPreState: false));
+    }
+
+    [Fact]
+    public void Zip_over_existing_archive_offers_no_destructive_undo()
+    {
+        var fs = new FakeFileSystem().AddFile("/Users/test/project/out.zip");
+        Assert.Null(Planner(fs).Plan("zip out.zip build", Cwd));
+
+        var plan = Planner().Plan("zip fresh.zip build", Cwd);
+        var action = Assert.IsType<UndoAction.Trash>(Assert.Single(plan!.Actions));
+        Assert.Equal("/Users/test/project/fresh.zip", action.Path);
+    }
+
+    [Fact]
+    public void Curl_over_existing_output_offers_no_destructive_undo()
+    {
+        var fs = new FakeFileSystem().AddFile("/Users/test/project/data.json");
+        Assert.Null(Planner(fs).Plan("curl -o data.json http://x", Cwd));
+    }
+
+    [Fact]
+    public void Mv_over_existing_file_offers_no_undo()
+    {
+        var fs = new FakeFileSystem()
+            .AddFile("/Users/test/project/src.txt")
+            .AddFile("/Users/test/project/dest.txt");
+        Assert.Null(Planner(fs).Plan("mv src.txt dest.txt", Cwd));
+    }
+
+    [Fact]
+    public void Archive_and_download_undo_need_pre_state()
+    {
+        Assert.Null(Planner().Plan("zip out.zip build", Cwd, allowPreState: false));
+        Assert.Null(Planner().Plan("tar -cf out.tar build", Cwd, allowPreState: false));
+        Assert.Null(Planner().Plan("curl -o data.json http://x", Cwd, allowPreState: false));
+    }
 }

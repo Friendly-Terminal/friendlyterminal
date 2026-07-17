@@ -110,13 +110,35 @@ public sealed class SessionState : INotifyPropertyChanged
         get
         {
             var items = new List<BreadcrumbItem>();
-            var parts = _currentDirectory.Split('\\', '/')
-                .Where(p => p.Length > 0)
-                .ToArray();
-            var accumulated = "";
-            foreach (var part in parts)
+            var path = _currentDirectory;
+            string accumulated;
+            IEnumerable<string> rest;
+
+            if (path.StartsWith(@"\\") || path.StartsWith("//"))
             {
-                accumulated = accumulated.Length == 0 ? part + "\\" : Path.Combine(accumulated, part);
+                // UNC: \\server\share is the root and stays a single crumb.
+                var segs = path[2..].Split('\\', '/').Where(p => p.Length > 0).ToArray();
+                var server = segs.ElementAtOrDefault(0) ?? "";
+                var share = segs.ElementAtOrDefault(1) ?? "";
+                accumulated = @"\\" + server + (share.Length > 0 ? "\\" + share : "");
+                if (accumulated.Length > 2)
+                    items.Add(new BreadcrumbItem(accumulated, accumulated));
+                rest = segs.Skip(2);
+            }
+            else
+            {
+                var segs = path.Split('\\', '/').Where(p => p.Length > 0).ToArray();
+                var root = segs.ElementAtOrDefault(0) ?? "";
+                // Keep a drive root's separator (bare "C:" is drive-relative to Path.Combine).
+                accumulated = root.EndsWith(':') ? root + "\\" : root;
+                if (root.Length > 0)
+                    items.Add(new BreadcrumbItem(root, accumulated));
+                rest = segs.Skip(1);
+            }
+
+            foreach (var part in rest)
+            {
+                accumulated = Path.Combine(accumulated, part);
                 items.Add(new BreadcrumbItem(part, accumulated));
             }
             return items;
@@ -192,9 +214,13 @@ public sealed class SessionState : INotifyPropertyChanged
     public static bool IsClaudeCommand(string command)
     {
         var lastStage = command.Split('|')[^1];
-        foreach (var token in lastStage.Split(' ', '\t').Where(t => t.Length > 0))
+        foreach (var raw in lastStage.Split(' ', '\t').Where(t => t.Length > 0))
         {
-            if (token.Contains('=')) continue;
+            // The app launches a resolved install as `& "C:\...\claude.exe"`, so skip
+            // the PowerShell call operator and strip quotes before matching the name.
+            if (raw == "&") continue;
+            var token = raw.Trim('"', '\'');
+            if (token.Length == 0 || token.Contains('=')) continue;
             if (WrapperTokens.Contains(token)) continue;
             var name = Path.GetFileNameWithoutExtension(token);
             return string.Equals(name, "claude", StringComparison.OrdinalIgnoreCase);
@@ -212,6 +238,9 @@ public sealed class SessionState : INotifyPropertyChanged
     /// handler so the block markers are emitted just like a typed command.</summary>
     public void ExecuteCommand(string command)
     {
+        // Serialize submission: a command in flight owns the single pending-undo
+        // slot, and an intercepted deletion must not run out of order beneath it.
+        if (Blocks.CurrentBlock is not null) return;
         var trimmed = command.Trim();
         if (InterceptDeletion(trimmed)) return;
         _pendingUndo = _undoPlanner.Plan(trimmed, _currentDirectory) is { } plan ? (trimmed, plan) : null;
@@ -383,8 +412,19 @@ public sealed class SessionState : INotifyPropertyChanged
                 CreateNoWindow = true,
             });
             if (p is null) return null;
-            var output = p.StandardOutput.ReadToEnd();
-            p.WaitForExit(10_000);
+
+            // Read both streams async so neither pipe can fill and deadlock, then
+            // enforce a real timeout that kills the whole subprocess tree on hang.
+            var stdout = p.StandardOutput.ReadToEndAsync();
+            var stderr = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(10_000))
+            {
+                try { p.Kill(entireProcessTree: true); } catch { }
+                return null;
+            }
+            p.WaitForExit(); // let the async readers drain after exit
+            var output = stdout.GetAwaiter().GetResult();
+            _ = stderr.GetAwaiter().GetResult();
             return p.ExitCode == 0 ? (trim ? output.Trim() : output) : null;
         }
         catch

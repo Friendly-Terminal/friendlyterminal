@@ -43,8 +43,10 @@ public sealed class FileEntry
         if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
             return entries;
 
-        IEnumerable<string> children;
-        try { children = Directory.EnumerateFileSystemEntries(directory); }
+        // Materialize inside the guard: enumeration is lazy, so a disconnected share,
+        // deleted folder, or permission change surfaces during iteration, not construction.
+        List<string> children;
+        try { children = Directory.EnumerateFileSystemEntries(directory).ToList(); }
         catch { return entries; }
 
         foreach (var full in children)

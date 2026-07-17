@@ -29,6 +29,9 @@
     <Content Include="Assets\terminal.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Assets\xterm\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\..\shell\Microsoft.PowerShell_profile.ps1">
       <Link>Shell\Microsoft.PowerShell_profile.ps1</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -91,7 +91,11 @@ public sealed partial class ClaudeDoctorView : UserControl
             _checker.Auth == ClaudeInstallChecker.AuthState.NotAuthenticated
                 ? ("Run claude login", () =>
                 {
-                    _session.ExecuteCommand("claude login");
+                    // Invoke the resolved path (a fallback install isn't on PATH); bare
+                    // `claude` only when nothing was resolved.
+                    var path = _checker.ClaudePath;
+                    var login = string.IsNullOrEmpty(path) ? "claude login" : $"& \"{path}\" login";
+                    _session.ExecuteCommand(login);
                     DismissRequested?.Invoke();
                 })
                 : null));
