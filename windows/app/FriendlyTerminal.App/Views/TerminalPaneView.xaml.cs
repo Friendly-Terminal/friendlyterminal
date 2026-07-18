@@ -2,9 +2,11 @@ using System.ComponentModel;
 using System.IO;
 using FriendlyTerminal.App.Pty;
 using FriendlyTerminal.Core.ShellIntegration;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 
 namespace FriendlyTerminal.App.Views;
@@ -23,6 +25,20 @@ public sealed partial class TerminalPaneView : UserControl
     private bool _isFocusedPane;
     private bool _showHeader;
 
+    // Input typed before the shell process exists is queued rather than dropped.
+    private readonly Queue<string> _pendingInput = new();
+
+    // Coalesce PTY reads that arrive between UI ticks into a single WebView write
+    // and a single batch of shell-integration events, so bursts don't queue quadratic work.
+    private readonly object _pendingLock = new();
+    private readonly List<ShellEvent> _pendingEvents = new();
+    private readonly MemoryStream _pendingBytes = new();
+    private bool _flushScheduled;
+
+    private bool _ready;
+    private bool _errorShown;
+    private DispatcherQueueTimer? _readyTimer;
+
     public SessionState Session { get; } = new();
 
     /// <summary>Raised when the shell exits on its own (e.g. the user typed `exit`).</summary>
@@ -40,7 +56,7 @@ public sealed partial class TerminalPaneView : UserControl
 
         BlockList.Session = Session;
         CommandBar.Session = Session;
-        Session.SendToShell = text => _pty?.WriteInput(text);
+        Session.SendToShell = SendInput;
         Session.SetCurrentDirectory(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         Session.PropertyChanged += OnSessionChanged;
 
@@ -81,11 +97,38 @@ public sealed partial class TerminalPaneView : UserControl
         if (_started) return;
         _started = true;
 
-        await Xterm.EnsureCoreWebView2Async();
-        Xterm.CoreWebView2.WebMessageReceived += OnWebMessage;
+        try
+        {
+            await Xterm.EnsureCoreWebView2Async();
+            if (Volatile.Read(ref _closing) != 0 || Xterm.CoreWebView2 is null) return;
 
-        var html = Path.Combine(AppContext.BaseDirectory, "Assets", "terminal.html");
-        Xterm.CoreWebView2.Navigate(new Uri(html).AbsoluteUri);
+            Xterm.CoreWebView2.WebMessageReceived += OnWebMessage;
+            Xterm.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+
+            var html = Path.Combine(AppContext.BaseDirectory, "Assets", "terminal.html");
+            Xterm.CoreWebView2.Navigate(new Uri(html).AbsoluteUri);
+
+            _readyTimer = DispatcherQueue.CreateTimer();
+            _readyTimer.Interval = TimeSpan.FromSeconds(8);
+            _readyTimer.IsRepeating = false;
+            _readyTimer.Tick += (_, _) =>
+            {
+                if (!_ready)
+                    ShowTerminalError("The terminal did not finish loading.");
+            };
+            _readyTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            ShowTerminalError("The terminal failed to start.", ex);
+        }
+    }
+
+    private void OnNavigationCompleted(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
+    {
+        if (Volatile.Read(ref _closing) != 0 || _ready || _errorShown) return;
+        if (!args.IsSuccess)
+            ShowTerminalError($"The terminal view failed to load ({args.WebErrorStatus}).");
     }
 
     private void OnWebMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
@@ -94,9 +137,14 @@ public sealed partial class TerminalPaneView : UserControl
         if (string.IsNullOrEmpty(message)) return;
 
         if (message == "ready")
+        {
+            if (_errorShown) return;
+            _ready = true;
+            _readyTimer?.Stop();
             StartShell();
+        }
         else if (message.StartsWith("i:"))
-            _pty?.WriteInput(message[2..]);
+            SendInput(message[2..]);
         else if (message.StartsWith("r:") && message.Length > 2)
         {
             var parts = message[2..].Split('x');
@@ -105,13 +153,36 @@ public sealed partial class TerminalPaneView : UserControl
         }
     }
 
+    private void ShowTerminalError(string message, Exception? ex = null)
+    {
+        if (_errorShown || Volatile.Read(ref _closing) != 0) return;
+        _errorShown = true;
+        _readyTimer?.Stop();
+
+        var text = ex is null ? message : $"{message}\n\n{ex.Message}";
+        if (Xterm.Parent is not Panel host) return;
+
+        Xterm.Visibility = Visibility.Collapsed;
+        BlockList.Visibility = Visibility.Collapsed;
+        host.Children.Add(new TextBlock
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+            Padding = new Thickness(24),
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.Salmon),
+        });
+    }
+
     private void StartShell()
     {
         // Source the shell-integration profile so the prompt emits the OSC markers
-        // (cwd, block boundaries, command text) the stream parser reads.
+        // (cwd, block boundaries, command text) the stream parser reads. -ExecutionPolicy
+        // Bypass (process-scoped, not persisted) lets the unsigned profile dot-source under
+        // the default Restricted policy on client SKUs, where it would otherwise be blocked.
         var profilePath = Path.Combine(AppContext.BaseDirectory, "Shell", "Microsoft.PowerShell_profile.ps1");
         var command = File.Exists(profilePath)
-            ? $"powershell.exe -NoLogo -NoExit -Command \". '{profilePath.Replace("'", "''")}'\""
+            ? $"powershell.exe -NoLogo -NoExit -ExecutionPolicy Bypass -Command \". '{profilePath.Replace("'", "''")}'\""
             : "powershell.exe -NoLogo -NoExit";
 
         _pty = new PtyConnection(command, 120, 30);
@@ -122,6 +193,19 @@ public sealed partial class TerminalPaneView : UserControl
                 Exited?.Invoke(this);
         });
         _pty.Start();
+
+        while (_pendingInput.Count > 0)
+            _pty.WriteInput(_pendingInput.Dequeue());
+    }
+
+    // Queue input typed or dispatched before the shell process exists so it isn't lost;
+    // StartShell drains the queue once the PTY is up.
+    private void SendInput(string text)
+    {
+        if (_pty is null)
+            _pendingInput.Enqueue(text);
+        else
+            _pty.WriteInput(text);
     }
 
     private void OnPtyOutput(byte[] data)
@@ -129,23 +213,47 @@ public sealed partial class TerminalPaneView : UserControl
         // Raised on the PTY reader thread; stop forwarding once the pane is closing.
         if (Volatile.Read(ref _closing) != 0) return;
 
-        // Parse shell-integration events off-thread, apply them on the UI thread.
+        // Parse shell-integration events off-thread; buffer bytes+events for the next UI tick.
         var events = _stream.Feed(data);
 
-        var b64 = Convert.ToBase64String(data);
-        DispatcherQueue.TryEnqueue(() =>
+        bool schedule;
+        lock (_pendingLock)
         {
-            if (Volatile.Read(ref _closing) != 0) return;
+            _pendingEvents.AddRange(events);
+            _pendingBytes.Write(data, 0, data.Length);
+            schedule = !_flushScheduled;
+            _flushScheduled = true;
+        }
 
-            foreach (var evt in events)
-                Session.HandleShellEvent(evt);
+        if (schedule)
+            DispatcherQueue.TryEnqueue(FlushPtyOutput);
+    }
 
-            if (Xterm.CoreWebView2 is null) return;
-            // Fire-and-forget is safe here: a discarded Task won't crash the process
-            // the way an async-void queued handler would if the call fails mid-teardown.
-            try { _ = Xterm.CoreWebView2.ExecuteScriptAsync($"window.ptyWrite('{b64}')"); }
-            catch { /* racing teardown; losing this chunk during shutdown is harmless */ }
-        });
+    private void FlushPtyOutput()
+    {
+        ShellEvent[] events;
+        byte[] bytes;
+        lock (_pendingLock)
+        {
+            _flushScheduled = false;
+            events = _pendingEvents.ToArray();
+            _pendingEvents.Clear();
+            bytes = _pendingBytes.ToArray();
+            _pendingBytes.SetLength(0);
+        }
+
+        if (Volatile.Read(ref _closing) != 0) return;
+
+        foreach (var evt in events)
+            Session.HandleShellEvent(evt);
+
+        if (bytes.Length == 0 || Xterm.CoreWebView2 is null) return;
+
+        var b64 = Convert.ToBase64String(bytes);
+        // Fire-and-forget is safe here: a discarded Task won't crash the process
+        // the way an async-void queued handler would if the call fails mid-teardown.
+        try { _ = Xterm.CoreWebView2.ExecuteScriptAsync($"window.ptyWrite('{b64}')"); }
+        catch { /* racing teardown; losing this chunk during shutdown is harmless */ }
     }
 
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
@@ -185,6 +293,7 @@ public sealed partial class TerminalPaneView : UserControl
     public void Shutdown()
     {
         Volatile.Write(ref _closing, 1);
+        _readyTimer?.Stop();
         _pty?.Dispose();
         Xterm.Close();
     }

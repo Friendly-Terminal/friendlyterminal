@@ -36,6 +36,7 @@ public sealed class GitPanel : INotifyPropertyChanged
     private List<GitFileChange> _changes = new();
     private int _ahead;
     private bool _isBusy;
+    private int _seq;
 
     public GitPanel(string path) => _path = path;
 
@@ -67,6 +68,7 @@ public sealed class GitPanel : INotifyPropertyChanged
     private void Mutate(string? args)
     {
         IsBusy = true;
+        var seq = ++_seq;
         var context = SynchronizationContext.Current;
         Task.Run(() =>
         {
@@ -76,6 +78,8 @@ public sealed class GitPanel : INotifyPropertyChanged
 
             void Apply()
             {
+                // Latest-wins: a newer refresh has already superseded this snapshot.
+                if (seq != _seq) return;
                 IsRepo = snap.IsRepo;
                 Branch = snap.Branch;
                 Changes = snap.Changes;

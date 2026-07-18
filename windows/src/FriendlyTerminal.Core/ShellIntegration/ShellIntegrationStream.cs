@@ -12,6 +12,11 @@ namespace FriendlyTerminal.Core.ShellIntegration;
 /// </summary>
 public sealed class ShellIntegrationStream
 {
+    // Cap on an unterminated escape sequence buffered across chunks. A malformed
+    // OSC (no BEL/ST) or CSI (no final byte) would otherwise grow without bound
+    // and swallow every later marker; on overflow we give up and flush it as output.
+    private const int MaxPendingBytes = 64 * 1024;
+
     private byte[] _pending = Array.Empty<byte>();
 
     public List<ShellEvent> Feed(ReadOnlySpan<byte> incoming)
@@ -85,6 +90,15 @@ public sealed class ShellIntegrationStream
                 }
                 if (end < 0 || incomplete)
                 {
+                    if (n - i > MaxPendingBytes)
+                    {
+                        // Overflow recovery: no terminator in a buffer this large
+                        // means the OSC is malformed. Flush it as plain output and
+                        // resume clean parsing so later markers are seen again.
+                        for (var k = i; k < n; k++) text.Add(bytes[k]);
+                        i = n;
+                        continue;
+                    }
                     _pending = bytes[i..];
                     brokeEarly = true;
                     break;
@@ -113,6 +127,15 @@ public sealed class ShellIntegrationStream
                 }
                 if (end < 0)
                 {
+                    if (n - i > MaxPendingBytes)
+                    {
+                        // Overflow recovery: no final byte in a buffer this large
+                        // means the CSI is malformed. Flush it as plain output and
+                        // resume clean parsing so later markers are seen again.
+                        for (var k = i; k < n; k++) text.Add(bytes[k]);
+                        i = n;
+                        continue;
+                    }
                     _pending = bytes[i..];
                     brokeEarly = true;
                     break;

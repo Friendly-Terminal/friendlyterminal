@@ -149,9 +149,19 @@ public sealed partial class BreadcrumbBarView : UserControl
     private void OnAddPane(object sender, RoutedEventArgs e) => AddPaneRequested?.Invoke();
     private void OnRefresh(object sender, RoutedEventArgs e) => _session?.RefreshFiles();
 
-    private void OnClaudeNew(object sender, RoutedEventArgs e) => _session?.ExecuteCommand("claude");
-    private void OnClaudeContinue(object sender, RoutedEventArgs e) => _session?.ExecuteCommand("claude --continue");
-    private void OnClaudeResume(object sender, RoutedEventArgs e) => _session?.ExecuteCommand("claude --resume");
+    private void OnClaudeNew(object sender, RoutedEventArgs e) => _session?.ExecuteCommand(ClaudeCommand(null));
+    private void OnClaudeContinue(object sender, RoutedEventArgs e) => _session?.ExecuteCommand(ClaudeCommand("--continue"));
+    private void OnClaudeResume(object sender, RoutedEventArgs e) => _session?.ExecuteCommand(ClaudeCommand("--resume"));
+
+    // Launch the resolved Claude executable via PowerShell's call operator; a fallback
+    // install isn't on PATH, so bare `claude` would be command-not-found there. Only
+    // drop to bare `claude` when no path was resolved.
+    private string ClaudeCommand(string? args)
+    {
+        var path = _checker.ClaudePath;
+        var launcher = string.IsNullOrEmpty(path) ? "claude" : $"& '{path.Replace("'", "''")}'";
+        return string.IsNullOrEmpty(args) ? launcher : $"{launcher} {args}";
+    }
 
     private async void OnClaudeDoctor(object sender, RoutedEventArgs e)
     {
