@@ -159,7 +159,7 @@ public sealed partial class BreadcrumbBarView : UserControl
     private string ClaudeCommand(string? args)
     {
         var path = _checker.ClaudePath;
-        var launcher = string.IsNullOrEmpty(path) ? "claude" : $"& \"{path}\"";
+        var launcher = string.IsNullOrEmpty(path) ? "claude" : $"& '{path.Replace("'", "''")}'";
         return string.IsNullOrEmpty(args) ? launcher : $"{launcher} {args}";
     }
 

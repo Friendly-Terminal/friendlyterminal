@@ -16,6 +16,14 @@ public class RmInterceptorTests
     }
 
     [Fact]
+    public void Rejects_empty_quoted_target_instead_of_trashing_cwd()
+    {
+        var fs = new FakeFileSystem().AddDir(Cwd);
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm \"\"", Cwd));
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm -rf ''", Cwd));
+    }
+
+    [Fact]
     public void Rejects_globs_and_metacharacters()
     {
         var fs = new FakeFileSystem();

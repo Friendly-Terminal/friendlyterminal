@@ -33,6 +33,7 @@ public sealed class RmInterceptor
                 if (!IsAcceptedFlag(arg)) return null;
                 continue;
             }
+            if (arg.Length == 0) return null;
             if (arg.IndexOfAny(UnsafeChars) >= 0) return null;
             var path = PathUtil.Resolve(arg, cwd, _fs.HomeDirectory);
             if (!_fs.Exists(path)) return null;

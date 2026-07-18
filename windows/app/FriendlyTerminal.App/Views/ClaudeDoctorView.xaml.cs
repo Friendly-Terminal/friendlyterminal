@@ -94,7 +94,7 @@ public sealed partial class ClaudeDoctorView : UserControl
                     // Invoke the resolved path (a fallback install isn't on PATH); bare
                     // `claude` only when nothing was resolved.
                     var path = _checker.ClaudePath;
-                    var login = string.IsNullOrEmpty(path) ? "claude login" : $"& \"{path}\" login";
+                    var login = string.IsNullOrEmpty(path) ? "claude login" : $"& '{path.Replace("'", "''")}' login";
                     _session.ExecuteCommand(login);
                     DismissRequested?.Invoke();
                 })
