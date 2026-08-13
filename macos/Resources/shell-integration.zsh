@@ -12,9 +12,22 @@ _ft_command_end()    { _ft_osc "133;D;$1"; }
 _ft_command_text()   { _ft_osc "633;E;$(printf '%s' "$1" | base64 | tr -d '\n')"; }
 
 _ft_update_cwd() {
-    local encoded_host
+    local encoded_host url_path=''
     encoded_host=$(hostname 2>/dev/null || echo "localhost")
-    _ft_osc "7;file://${encoded_host}${PWD}"
+    {
+        # C locale so multi-byte characters are processed and matched byte-by-byte.
+        local i ch hexch LC_CTYPE=C LC_COLLATE=C LC_ALL= LANG=
+        for ((i = 1; i <= ${#PWD}; ++i)); do
+            ch="$PWD[i]"
+            if [[ "$ch" =~ [/._~A-Za-z0-9-] ]]; then
+                url_path+="$ch"
+            else
+                printf -v hexch "%02X" "'$ch"
+                url_path+="%${hexch:(-2)}"
+            fi
+        done
+    }
+    _ft_osc "7;file://${encoded_host}${url_path}"
 }
 
 _ft_precmd() {

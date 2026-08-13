@@ -15,6 +15,7 @@ public sealed partial class GitPanelView : UserControl
 {
     private readonly GitPanel _panel;
     private readonly SessionState _session;
+    private bool _errorDismissed;
 
     /// <summary>Raised when the panel ran a command in the terminal and the dialog should close.</summary>
     public event Action? DismissRequested;
@@ -28,11 +29,22 @@ public sealed partial class GitPanelView : UserControl
         _panel.Refresh();
     }
 
-    private void OnPanelChanged(object? sender, PropertyChangedEventArgs e) => Render();
+    private void OnPanelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Mutate clears LastError at start, so every new failure is a real
+        // transition here - a fresh chance to show, even a repeat of one dismissed.
+        if (e.PropertyName == nameof(GitPanel.LastError))
+            _errorDismissed = false;
+        Render();
+    }
+
+    private void OnErrorDismiss(InfoBar sender, object args) => _errorDismissed = true;
 
     private void Render()
     {
         BusyRing.IsActive = _panel.IsBusy;
+        ErrorBar.Message = _panel.LastError ?? "";
+        ErrorBar.IsOpen = _panel.LastError is not null && !_errorDismissed;
         BranchText.Text = _panel.IsRepo ? $"On branch {_panel.Branch}" : "";
         PushLabel.Text = _panel.Ahead > 0 ? $"Push {_panel.Ahead}" : "Push";
 

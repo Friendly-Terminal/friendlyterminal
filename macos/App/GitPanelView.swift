@@ -23,6 +23,10 @@ struct GitPanelView: View {
             } else {
                 changesList
                 Divider()
+                if let error = panel.lastError {
+                    errorBanner(error)
+                    Divider()
+                }
                 commitArea
             }
         }
@@ -52,6 +56,7 @@ struct GitPanelView: View {
             }
             .buttonStyle(.plain)
             .help("New to Git? What these words mean")
+            .accessibilityLabel("Git help")
             .popover(isPresented: $showingHelp, arrowEdge: .bottom) {
                 gitHelp
             }
@@ -62,6 +67,7 @@ struct GitPanelView: View {
             }
             .buttonStyle(.plain)
             .help("Refresh")
+            .accessibilityLabel("Refresh")
             Button("Done") { dismiss() }
                 .keyboardShortcut(.cancelAction)
         }
@@ -210,6 +216,31 @@ struct GitPanelView: View {
         case "Conflict":     return .orange
         default:             return .secondary
         }
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(4)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+            Button {
+                panel.lastError = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tertiary)
+            .accessibilityLabel("Dismiss error")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
     }
 
     private var commitArea: some View {

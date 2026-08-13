@@ -64,13 +64,13 @@ const tourSteps: TourStep[] = [
     targetId: "command-dock",
     symbol: ">_",
     title: "Run commands here",
-    message: "Type a command and press Enter to run it in your active terminal. Press Ctrl+K whenever you want to jump back here."
+    message: "Type a command and press Enter to run it in your active terminal. Press Ctrl+Shift+K whenever you want to jump back here."
   },
   {
     targetId: "files-panel",
     symbol: "▤",
     title: "Browse your files",
-    message: "This shows the folder you’re currently in. Double-click a folder to move into it, or a file to open it — no command needed."
+    message: "This shows the folder you’re currently in. Click a folder to move into it, or a file to open it — no command needed."
   },
   {
     targetId: "help-panel",
@@ -161,6 +161,7 @@ class FriendlyTerminalApp {
   }
 
   async start(): Promise<void> {
+    document.documentElement.dataset.home = window.friendlyTerminal.home();
     this.bindControls();
     this.bindIpc();
     this.applyPreferences();
@@ -188,7 +189,8 @@ class FriendlyTerminalApp {
     requiredElement("refresh-files").addEventListener("click", () => void this.refreshContext());
     requiredElement("clear-history").addEventListener("click", () => this.clearHistory());
     requiredElement("find-terminal").addEventListener("click", () => this.openTerminalSearch());
-    requiredElement("terminal-search-next").addEventListener("click", () => this.searchTerminal());
+    requiredElement("terminal-search-prev").addEventListener("click", () => this.searchTerminal("previous"));
+    requiredElement("terminal-search-next").addEventListener("click", () => this.searchTerminal("next"));
     requiredElement("terminal-search-close").addEventListener("click", () => this.closeTerminalSearch());
     requiredElement("show-welcome-tour").addEventListener("click", () => {
       this.settingsDialog.close();
@@ -224,10 +226,10 @@ class FriendlyTerminalApp {
       this.renderHelp();
     });
     this.gitPill.addEventListener("click", () => this.toggleGitPopover());
-    this.terminalSearchInput.addEventListener("input", () => this.searchTerminal());
+    this.terminalSearchInput.addEventListener("input", () => this.searchTerminal("incremental"));
     this.terminalSearchInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
-        this.searchTerminal();
+        this.searchTerminal(event.shiftKey ? "previous" : "next");
       } else if (event.key === "Escape") {
         this.closeTerminalSearch();
       }
@@ -480,6 +482,9 @@ class FriendlyTerminalApp {
       }
       this.renderFiles(listing);
     } catch (error) {
+      if (sequence !== this.refreshSequence || pane !== this.activePane) {
+        return;
+      }
       this.fileList.innerHTML = `<div class="empty-state">${escapeHtml(error instanceof Error ? error.message : "This folder could not be read")}</div>`;
     }
   }
@@ -509,7 +514,10 @@ class FriendlyTerminalApp {
     row.querySelector<HTMLElement>(".file-name")!.textContent = entry.name;
     row.querySelector<HTMLElement>(".file-meta")!.textContent = entry.isDirectory ? "" : formatBytes(entry.size);
     row.title = entry.path;
-    row.addEventListener("dblclick", () => {
+    row.addEventListener("click", (event) => {
+      if (event.detail > 1) {
+        return;
+      }
       if (entry.isDirectory) {
         this.activePane?.navigate(entry.path);
       } else {
@@ -1087,6 +1095,10 @@ class FriendlyTerminalApp {
   }
 
   private applyPreferences(): void {
+    const fontSize = Number(this.preferences.fontSize);
+    this.preferences.fontSize = Number.isFinite(fontSize) ? Math.min(32, Math.max(8, Math.round(fontSize))) : defaultPreferences.fontSize;
+    this.preferences.showHidden = this.preferences.showHidden === true;
+    this.preferences.confirmClose = this.preferences.confirmClose !== false;
     requiredElement<HTMLInputElement>("show-hidden").checked = this.preferences.showHidden;
     requiredElement<HTMLInputElement>("settings-show-hidden").checked = this.preferences.showHidden;
     requiredElement<HTMLInputElement>("confirm-close").checked = this.preferences.confirmClose;
@@ -1134,13 +1146,12 @@ class FriendlyTerminalApp {
     this.activePane?.clearSearch();
   }
 
-  private searchTerminal(): void {
+  private searchTerminal(direction: "incremental" | "next" | "previous"): void {
     const query = this.terminalSearchInput.value;
-    if (query && !this.activePane?.search(query)) {
-      this.terminalSearchInput.classList.add("no-match");
-    } else {
-      this.terminalSearchInput.classList.remove("no-match");
-    }
+    const found = !query || (direction === "previous"
+      ? this.activePane?.searchPrevious(query)
+      : this.activePane?.search(query, direction === "incremental"));
+    this.terminalSearchInput.classList.toggle("no-match", !found);
   }
 
   private handleShortcut(event: KeyboardEvent): void {

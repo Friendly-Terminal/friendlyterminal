@@ -26,21 +26,53 @@ public sealed class RmInterceptor
         if (parts.Count == 0 || !DeleteCommands.Contains(parts[0])) return null;
 
         var targets = new List<string>();
+        var dirOk = false;
         foreach (var arg in parts.Skip(1))
         {
             if (arg.StartsWith('-'))
             {
                 if (!IsAcceptedFlag(arg)) return null;
+                dirOk |= AllowsDirectories(arg);
                 continue;
             }
             if (arg.Length == 0) return null;
             if (arg.IndexOfAny(UnsafeChars) >= 0) return null;
-            var path = PathUtil.Resolve(arg, cwd, _fs.HomeDirectory);
+            if (arg is "." or "..") return null;
+            // Collapse "./x" and "../x" so the ancestor check sees the real path.
+            if (PathUtil.Normalize(PathUtil.Resolve(arg, cwd, _fs.HomeDirectory)) is not { } path)
+                return null;
+            if (IsCwdOrAncestor(path, cwd)) return null;
             if (!_fs.Exists(path)) return null;
             targets.Add(path);
         }
+        // Directories only with an explicit -r/-R/-d/-Recurse; otherwise let the
+        // real command run and error.
+        if (!dirOk && targets.Any(_fs.IsDirectory)) return null;
 
         return targets.Count == 0 ? null : targets;
+    }
+
+    private static bool AllowsDirectories(string arg)
+    {
+        var body = arg[1..];
+        if (IsPrefixOf(body, "recurse")) return true;
+        return body.All(AllowedFlags.Contains) && body.IndexOfAny(new[] { 'r', 'R', 'd' }) >= 0;
+    }
+
+    private static bool IsCwdOrAncestor(string path, string cwd)
+    {
+        // A cwd we can't normalize is unsafe to compare against; decline.
+        if (PathUtil.Normalize(cwd) is not { } cleanCwd) return true;
+        var p = Norm(path);
+        var c = Norm(cleanCwd);
+        return c.Equals(p, StringComparison.OrdinalIgnoreCase) ||
+               c.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Norm(string p)
+    {
+        var n = p.Replace('\\', '/').TrimEnd('/');
+        return n.Length == 0 ? "/" : n;
     }
 
     // Accepts POSIX bundled short flags (-rf, -r) and PowerShell switches given as

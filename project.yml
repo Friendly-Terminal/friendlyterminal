@@ -50,6 +50,20 @@ targets:
       - package: SwiftTerm
         product: SwiftTerm
 
+  FriendlyTerminalTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: macosTests
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.friendlyterminal.app.tests
+    dependencies:
+      - target: FriendlyTerminal
+
 schemes:
   FriendlyTerminal:
     build:
@@ -57,5 +71,9 @@ schemes:
         FriendlyTerminal: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - FriendlyTerminalTests
     archive:
       config: Release

@@ -3,7 +3,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text;
 using FriendlyTerminal.App.Models;
+using FriendlyTerminal.Core.Agents;
 using FriendlyTerminal.Core.Output;
 using FriendlyTerminal.Core.Platform;
 using FriendlyTerminal.Core.ShellIntegration;
@@ -17,14 +19,12 @@ public sealed record BreadcrumbItem(string Name, string Path);
 
 /// <summary>
 /// Shared state for one terminal pane: working directory, file listing, command
-/// blocks, TUI/Claude detection, git status, and undo. The host pane drives
+/// blocks, TUI/agent detection, git status, and undo. The host pane drives
 /// <see cref="HandleShellEvent"/> from the parsed PTY stream (marshaled onto the
 /// UI thread) and wires <see cref="SendToShell"/>.
 /// </summary>
 public sealed class SessionState : INotifyPropertyChanged
 {
-    private static readonly string[] WrapperTokens = { "sudo", "command", "exec", "time", "env" };
-
     private readonly PowerShellQuoter _quoter = new();
     private readonly UndoPlanner _undoPlanner;
     private readonly RmInterceptor _rmInterceptor;
@@ -86,7 +86,7 @@ public sealed class SessionState : INotifyPropertyChanged
         private set
         {
             if (SetField(ref _isTuiActive, value))
-                OnPropertyChanged(nameof(IsClaudeRunning));
+                OnPropertyChanged(nameof(IsAgentRunning));
         }
     }
 
@@ -96,14 +96,20 @@ public sealed class SessionState : INotifyPropertyChanged
         private set => SetField(ref _gitStatus, value);
     }
 
-    public bool IsClaudeRunning =>
-        _isTuiActive && IsClaudeCommand(Blocks.CurrentBlock?.Command ?? "");
+    /// <summary>The recognized AI agent running in this pane, or null when none.</summary>
+    public AgentProfile? ActiveAgent =>
+        _isTuiActive ? AgentRegistry.Match(Blocks.CurrentBlock?.Command ?? "") : null;
 
-    public string? CurrentClaudeCommand =>
-        IsClaudeRunning ? Blocks.CurrentBlock?.Command : null;
+    public bool IsAgentRunning => ActiveAgent is not null;
 
-    public bool ClaudeRunsWithDangerousFlag =>
-        CurrentClaudeCommand?.Contains("--dangerously-skip-permissions") ?? false;
+    public string? CurrentAgentCommand =>
+        IsAgentRunning ? Blocks.CurrentBlock?.Command : null;
+
+    public bool AgentRunsWithDangerousFlag =>
+        ActiveAgent is { } agent && CurrentAgentCommand is { } command
+        && AgentRegistry.Tokenize(command)
+            .Any(token => agent.DangerFlags.Any(flag =>
+                token == flag || (flag.StartsWith("--") && token.StartsWith(flag + "="))));
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs
     {
@@ -206,26 +212,8 @@ public sealed class SessionState : INotifyPropertyChanged
         var interactive = _altScreenOn || (_bracketedPasteOn && commandRunning);
         if (interactive != _isTuiActive)
             IsTuiActive = interactive;
-        // Claude state depends on the current block even when TUI state didn't flip.
-        OnPropertyChanged(nameof(IsClaudeRunning));
-    }
-
-    /// <summary>Is this command line launching Claude Code? Mirrors the macOS check.</summary>
-    public static bool IsClaudeCommand(string command)
-    {
-        var lastStage = command.Split('|')[^1];
-        foreach (var raw in lastStage.Split(' ', '\t').Where(t => t.Length > 0))
-        {
-            // The app launches a resolved install as `& "C:\...\claude.exe"`, so skip
-            // the PowerShell call operator and strip quotes before matching the name.
-            if (raw == "&") continue;
-            var token = raw.Trim('"', '\'');
-            if (token.Length == 0 || token.Contains('=')) continue;
-            if (WrapperTokens.Contains(token)) continue;
-            var name = Path.GetFileNameWithoutExtension(token);
-            return string.Equals(name, "claude", StringComparison.OrdinalIgnoreCase);
-        }
-        return false;
+        // Agent state depends on the current block even when TUI state didn't flip.
+        OnPropertyChanged(nameof(IsAgentRunning));
     }
 
     // MARK: - Commands
@@ -240,8 +228,12 @@ public sealed class SessionState : INotifyPropertyChanged
     {
         // Serialize submission: a command in flight owns the single pending-undo
         // slot, and an intercepted deletion must not run out of order beneath it.
-        if (Blocks.CurrentBlock is not null) return;
         var trimmed = command.Trim();
+        if (Blocks.CurrentBlock is not null)
+        {
+            Blocks.AppendOutput($"\n[not sent — a command is still running] {trimmed}\n");
+            return;
+        }
         if (InterceptDeletion(trimmed)) return;
         _pendingUndo = _undoPlanner.Plan(trimmed, _currentDirectory) is { } plan ? (trimmed, plan) : null;
         SendToShell?.Invoke(trimmed + "\r");
@@ -287,6 +279,7 @@ public sealed class SessionState : INotifyPropertyChanged
     {
         if (block.UndoPlan is not { } plan || block.IsUndone) return;
         var fs = WindowsFileSystem.Instance;
+        var failed = new List<string>();
         foreach (var action in plan.Actions)
         {
             switch (action)
@@ -295,14 +288,22 @@ public sealed class SessionState : INotifyPropertyChanged
                     ExecuteCommand(shell.Command);
                     break;
                 case UndoAction.Trash trash:
-                    fs.MoveToTrash(trash.Path);
+                    if (!fs.MoveToTrash(trash.Path))
+                        failed.Add(PathUtil.LastComponent(trash.Path));
                     break;
                 case UndoAction.Restore restore:
-                    fs.RestoreFromTrash(restore.TrashedPath, restore.OriginalPath);
+                    // Already restored on an earlier partially-failed attempt.
+                    if (!fs.Exists(restore.TrashedPath) && fs.Exists(restore.OriginalPath))
+                        break;
+                    if (!fs.RestoreFromTrash(restore.TrashedPath, restore.OriginalPath))
+                        failed.Add($"{PathUtil.LastComponent(restore.OriginalPath)} (still in the app trash)");
                     break;
             }
         }
-        block.IsUndone = true;
+        if (failed.Count == 0)
+            block.IsUndone = true;
+        else
+            block.PlainText += $"\nUndo failed for: {string.Join(", ", failed)}\n";
         RefreshFiles();
         RefreshGitStatus();
     }
@@ -318,32 +319,34 @@ public sealed class SessionState : INotifyPropertyChanged
         var fs = WindowsFileSystem.Instance;
         var restores = new List<UndoAction>();
         var moved = new List<string>();
+        var failed = new List<string>();
         foreach (var path in targets)
         {
+            var name = Path.GetFileName(path.TrimEnd('\\', '/'));
             if (fs.MoveToAppTrash(path) is { } trashed)
             {
-                moved.Add(Path.GetFileName(path.TrimEnd('\\', '/')));
+                moved.Add(name);
                 restores.Add(new UndoAction.Restore(trashed, path));
+            }
+            else
+            {
+                failed.Add(name);
             }
         }
 
         Blocks.StartBlock(command, _currentDirectory);
-        if (moved.Count == 0)
-        {
-            Blocks.AppendOutput("Couldn't move those items to the trash.\n");
-            Blocks.FinishBlock(1);
-        }
-        else
-        {
+        if (moved.Count > 0)
             Blocks.AppendOutput(
                 $"Moved {moved.Count} item{(moved.Count == 1 ? "" : "s")} to the trash: {string.Join(", ", moved)}\n");
-            Blocks.FinishBlock(0);
-            if (Blocks.LastFinishedBlock is { } block && restores.Count > 0)
-            {
-                block.UndoPlan = new UndoPlan(
-                    $"Undo delete (restore {restores.Count} item{(restores.Count == 1 ? "" : "s")})",
-                    restores);
-            }
+        if (failed.Count > 0)
+            Blocks.AppendOutput(
+                $"Couldn't move {failed.Count} item{(failed.Count == 1 ? "" : "s")}: {string.Join(", ", failed)}\n");
+        Blocks.FinishBlock(failed.Count > 0 ? 1 : 0);
+        if (Blocks.LastFinishedBlock is { } block && restores.Count > 0)
+        {
+            block.UndoPlan = new UndoPlan(
+                $"Undo delete (restore {restores.Count} item{(restores.Count == 1 ? "" : "s")})",
+                restores);
         }
         RefreshFiles();
         return true;
@@ -405,7 +408,7 @@ public sealed class SessionState : INotifyPropertyChanged
             using var p = Process.Start(new ProcessStartInfo
             {
                 FileName = "git.exe",
-                Arguments = $"-C \"{cwd}\" {args}",
+                Arguments = $"-C {QuoteProcessArg(cwd)} {args}",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -431,6 +434,22 @@ public sealed class SessionState : INotifyPropertyChanged
         {
             return null;
         }
+    }
+
+    // Windows argv rules: backslashes before a quote (including the closing one)
+    // must double, so "C:\" doesn't escape its own closing quote.
+    internal static string QuoteProcessArg(string arg)
+    {
+        var sb = new StringBuilder("\"");
+        var slashes = 0;
+        foreach (var c in arg)
+        {
+            if (c == '\\') { slashes++; continue; }
+            if (c == '"') sb.Append('\\', slashes * 2 + 1).Append('"');
+            else sb.Append('\\', slashes).Append(c);
+            slashes = 0;
+        }
+        return sb.Append('\\', slashes * 2).Append('"').ToString();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

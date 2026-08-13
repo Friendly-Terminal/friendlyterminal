@@ -606,18 +606,36 @@ input[type="checkbox"] {
 }
 
 .help-command-list .command-result {
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 3px;
   min-height: 0;
-  padding: 6px 8px;
+  padding: 7px 9px;
 }
 
 .help-command-list .command-result span {
   font-size: 10px;
+  line-height: 1.35;
+}
+
+.help-command-list .command-row-head {
+  align-items: flex-start;
+}
+
+.help-command-list .command-row-head code {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.help-command-list .command-row-head svg {
+  margin-top: 2px;
 }
 
 .help-command-list .danger-label {
-  justify-self: start;
+  align-self: flex-start;
 }
 
 .command-row-head {

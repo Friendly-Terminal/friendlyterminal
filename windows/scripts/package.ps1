@@ -21,6 +21,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# ponytail: win-arm64 deliberately dropped (csproj too); ship x64 only until arm64 demand shows up.
 $Rid = 'win-x64'
 $scriptDir = $PSScriptRoot
 $windowsDir = Split-Path -Parent $scriptDir

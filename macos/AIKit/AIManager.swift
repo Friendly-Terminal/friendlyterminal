@@ -40,13 +40,20 @@ final class AIManager {
             if #available(macOS 26.0, *) {
                 let provider = FoundationModelsProvider()
 
+                var latest = ""
                 for await chunk in provider.explainError(
                     command: block.command,
                     output: block.plainText,
                     exitCode: exitCode
                 ) {
+                    latest = chunk
                     block.aiState = .explanation(chunk)
                 }
+                if latest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    block.aiState = .explanation("No explanation available.")
+                }
+            } else {
+                block.aiState = .unavailable
             }
         }
     }

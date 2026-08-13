@@ -51,6 +51,7 @@ struct FileSidebarView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help(showHidden ? "Hide hidden files" : "Show hidden files")
+                .accessibilityLabel(showHidden ? "Hide hidden files" : "Show hidden files")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -94,6 +95,7 @@ struct FileSidebarView: View {
             .padding(.vertical, 5)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .accessibilityIdentifier("fileSidebar")
         .confirmationDialog(
             "Move \"\(itemToDelete?.name ?? "")\" to Trash?",
             isPresented: $showDeleteConfirm,

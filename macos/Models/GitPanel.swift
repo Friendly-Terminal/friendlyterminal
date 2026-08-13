@@ -53,6 +53,7 @@ final class GitPanel {
     var ahead: Int = 0
     var isBusy: Bool = false
     var commitMessage: String = ""
+    var lastError: String?
 
     init(path: String) { self.path = path }
 
@@ -84,15 +85,23 @@ final class GitPanel {
     func commit() {
         let message = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
-        commitMessage = ""
-        mutate(["commit", "-m", message])
+        mutate(["commit", "-m", message]) { [weak self] in
+            self?.commitMessage = ""
+        }
     }
 
-    private func mutate(_ args: [String]) {
+    private func mutate(_ args: [String], onSuccess: (() -> Void)? = nil) {
         let p = path
         isBusy = true
         Task {
-            _ = await Self.run(args, at: p)
+            let result = await Self.run(args, at: p)
+            if result.ok {
+                lastError = nil
+                onSuccess?()
+            } else {
+                let err = result.err?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                lastError = err.isEmpty ? "git \(args.first ?? "") failed" : err
+            }
             let snap = await Self.load(p)
             apply(snap)
             isBusy = false
@@ -145,32 +154,77 @@ final class GitPanel {
             guard chars.count >= 4 else { continue }
             var path = String(chars[3...]).trimmingCharacters(in: .whitespaces)
             if let arrow = path.range(of: " -> ") { path = String(path[arrow.upperBound...]) }
-            path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            path = unescapePath(path)
             guard !path.isEmpty else { continue }
             result.append(GitFileChange(path: path, index: chars[0], workTree: chars[1]))
         }
         return result
     }
 
-    nonisolated private static func run(_ args: [String], at path: String) async -> Bool {
+    /// Undoes git's C-style quoting (octal escapes, \", \\) so non-ASCII paths stage correctly.
+    nonisolated private static func unescapePath(_ raw: String) -> String {
+        guard raw.count >= 2, raw.hasPrefix("\""), raw.hasSuffix("\"") else { return raw }
+        let inner = Array(raw.dropFirst().dropLast().utf8)
+        var bytes: [UInt8] = []
+        var i = 0
+        while i < inner.count {
+            let b = inner[i]
+            guard b == UInt8(ascii: "\\"), i + 1 < inner.count else {
+                bytes.append(b)
+                i += 1
+                continue
+            }
+            let n = inner[i + 1]
+            i += 2
+            switch n {
+            case UInt8(ascii: "t"): bytes.append(0x09)
+            case UInt8(ascii: "n"): bytes.append(0x0A)
+            case UInt8(ascii: "r"): bytes.append(0x0D)
+            case UInt8(ascii: "0")...UInt8(ascii: "7"):
+                var value = Int(n - UInt8(ascii: "0"))
+                var digits = 1
+                while digits < 3, i < inner.count,
+                      (UInt8(ascii: "0")...UInt8(ascii: "7")).contains(inner[i]) {
+                    value = value * 8 + Int(inner[i] - UInt8(ascii: "0"))
+                    i += 1
+                    digits += 1
+                }
+                bytes.append(UInt8(value & 0xFF))
+            default: bytes.append(n)
+            }
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    nonisolated private static func run(_ args: [String], at path: String) async -> (ok: Bool, err: String?) {
         await withCheckedContinuation { cont in
             DispatchQueue.global(qos: .userInitiated).async {
-                cont.resume(returning: runSync(args, at: path).ok)
+                let result = runSync(args, at: path)
+                cont.resume(returning: (result.ok, result.err))
             }
         }
     }
 
-    nonisolated private static func runSync(_ args: [String], at path: String) -> (ok: Bool, out: String?) {
+    nonisolated private static func runSync(_ args: [String], at path: String) -> (ok: Bool, out: String?, err: String?) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", path] + args
         let outPipe = Pipe()
+        let errPipe = Pipe()
         process.standardOutput = outPipe
-        process.standardError = Pipe()
-        do { try process.run() } catch { return (false, nil) }
-        process.waitUntilExit()
+        process.standardError = errPipe
+        do { try process.run() } catch { return (false, nil, error.localizedDescription) }
+        // Drain both pipes before waiting so a full pipe buffer can't deadlock.
+        var errData = Data()
+        let group = DispatchGroup()
+        DispatchQueue.global(qos: .userInitiated).async(group: group) {
+            errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        }
         let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+        group.wait()
+        process.waitUntilExit()
         let out = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (process.terminationStatus == 0, out)
+        let err = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (process.terminationStatus == 0, out, err)
     }
 }

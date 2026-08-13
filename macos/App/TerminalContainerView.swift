@@ -4,7 +4,10 @@ struct TerminalContainerView: View {
     @Environment(SessionState.self) private var session
     @Environment(Workspace.self) private var workspace
 
+    @State private var passwordPromptActive = false
+
     var body: some View {
+        let showTerminal = session.isTUIActive || passwordPromptActive
         ZStack {
             TerminalBridge(
                 onCwdChange: { path in
@@ -19,7 +22,7 @@ struct TerminalContainerView: View {
                 onTUIChange: { active in
                     session.isTUIActive = active
                 },
-                isTUIActive: session.isTUIActive,
+                isTUIActive: showTerminal,
                 isFocusedPane: workspace.focusedID == session.id,
                 onTerminated: {
                     workspace.handleSessionExit(session.id)
@@ -31,16 +34,16 @@ struct TerminalContainerView: View {
                     session.sendToShell = sender
                 }
             )
-            .opacity(session.isTUIActive ? 1 : 0)
-            .allowsHitTesting(session.isTUIActive && !session.isClaudeRunning)
+            .opacity(showTerminal ? 1 : 0)
+            .allowsHitTesting((session.isTUIActive && !session.isClaudeRunning) || passwordPromptActive)
 
-            if !session.isTUIActive {
+            if !showTerminal {
                 BlockListView()
                     .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.15), value: session.isTUIActive)
+        .animation(.easeInOut(duration: 0.15), value: showTerminal)
     }
 
     private func handleShellEvent(_ event: ShellIntegrationParser.Event) {
@@ -58,6 +61,7 @@ struct TerminalContainerView: View {
             session.blockStore.startBlock(command: cmd, cwd: cwd)
             session.altScreenOn = false
             session.bracketedPasteOn = false
+            passwordPromptActive = false
             refreshInteractive()
 
         case .commandEnd(let exitCode):
@@ -65,11 +69,28 @@ struct TerminalContainerView: View {
             session.attachUndoPlan(exitCode: exitCode)
             session.altScreenOn = false
             session.bracketedPasteOn = false
+            passwordPromptActive = false
             refreshInteractive()
 
         case .output(let text):
             if !session.isTUIActive {
                 session.blockStore.appendOutput(plain: text, attributed: nil)
+                updatePasswordPrompt()
+            }
+
+        case .outputDiscardLine:
+            if !session.isTUIActive, let block = session.blockStore.currentBlock {
+                if let nl = block.plainText.lastIndex(of: "\n") {
+                    block.plainText = String(block.plainText[...nl])
+                } else {
+                    block.plainText = ""
+                }
+                if let nl = block.outputText.characters.lastIndex(of: "\n") {
+                    block.outputText = AttributedString(block.outputText[...nl])
+                } else {
+                    block.outputText = AttributedString()
+                }
+                updatePasswordPrompt()
             }
 
         case .altScreen(let on):
@@ -86,6 +107,21 @@ struct TerminalContainerView: View {
         case .promptStart:
             break
         }
+    }
+
+    private func updatePasswordPrompt() {
+        var active = false
+        if let plain = session.blockStore.currentBlock?.plainText {
+            // ponytail: naive keyword heuristic; extend patterns if reports come in.
+            let line = plain.suffix(256)
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .last ?? ""
+            active = line.range(
+                of: #"(password|passphrase)[^:]*:\s*$"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil
+        }
+        passwordPromptActive = active
     }
 
     private func refreshInteractive() {

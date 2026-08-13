@@ -154,8 +154,12 @@ export class TerminalPane {
     this.fit();
   }
 
-  search(query: string): boolean {
-    return this.searchAddon.findNext(query, { incremental: true, caseSensitive: false });
+  search(query: string, incremental = true): boolean {
+    return this.searchAddon.findNext(query, { incremental, caseSensitive: false });
+  }
+
+  searchPrevious(query: string): boolean {
+    return this.searchAddon.findPrevious(query, { caseSensitive: false });
   }
 
   clearSearch(): void {
@@ -183,7 +187,7 @@ export class TerminalPane {
     this.subscriptions.push(this.terminal.onSelectionChange(() => {
       const selection = this.terminal.getSelection();
       if (selection.length > 0) {
-        void navigator.clipboard.writeText(selection);
+        window.friendlyTerminal.clipboard.writeSelection(selection);
       }
     }));
     this.terminal.attachCustomKeyEventHandler((event) => {
@@ -243,7 +247,9 @@ export class TerminalPane {
 
   private compactPath(pathValue: string): string {
     const home = document.documentElement.dataset.home;
-    return home && pathValue.startsWith(home) ? `~${pathValue.slice(home.length)}` : pathValue;
+    return home && pathValue.startsWith(home) && (pathValue.length === home.length || pathValue[home.length] === "/")
+      ? `~${pathValue.slice(home.length)}`
+      : pathValue;
   }
 
   private requireElement(selector: string): HTMLElement {

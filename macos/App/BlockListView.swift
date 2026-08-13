@@ -2,12 +2,71 @@ import SwiftUI
 
 struct BlockListView: View {
     @Environment(SessionState.self) private var session
+    @Environment(Workspace.self) private var workspace
+    @State private var searchQuery: String = ""
+    @State private var isSearching: Bool = false
+    @FocusState private var searchFocused: Bool
+
+    private var filteredBlocks: [CommandBlock] {
+        let query = searchQuery.trimmingCharacters(in: .whitespaces)
+        guard isSearching, !query.isEmpty else { return session.blockStore.visibleBlocks }
+        return session.blockStore.visibleBlocks.filter {
+            $0.command.localizedCaseInsensitiveContains(query)
+                || $0.plainText.localizedCaseInsensitiveContains(query)
+        }
+    }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if isSearching {
+                searchBar
+            }
+            blockList
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .findInBlocks)) { _ in
+            guard workspace.focused.id == session.id else { return }
+            isSearching = true
+            searchFocused = true
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            TextField("Find in commands and output…", text: $searchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($searchFocused)
+                .onExitCommand { closeSearch() }
+            Button {
+                closeSearch()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Close search (Esc)")
+            .accessibilityLabel("Close search")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func closeSearch() {
+        isSearching = false
+        searchQuery = ""
+    }
+
+    private var blockList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(session.blockStore.visibleBlocks) { block in
+                    ForEach(filteredBlocks) { block in
                         BlockView(block: block)
                             .id(block.id)
                             .padding(.horizontal, 12)
@@ -42,6 +101,7 @@ struct BlockListView: View {
                 .padding(.bottom, 8)
             }
             .background(Color(nsColor: .textBackgroundColor))
+            .accessibilityIdentifier("blockList")
             .onChange(of: session.blockStore.visibleBlocks.count) { _, _ in
                 withAnimation {
                     proxy.scrollTo("bottom-anchor", anchor: .bottom)
@@ -119,6 +179,7 @@ struct BlockView: View {
                     .frame(width: 16, height: 16)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Collapse output" : "Expand output")
 
             Text(">")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -144,6 +205,7 @@ struct BlockView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Re-run this command")
+                .accessibilityLabel("Re-run this command")
             }
         }
         .padding(.horizontal, 12)
@@ -340,10 +402,6 @@ struct BlockView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
                     .textSelection(.enabled)
-
-                Button("Fix it") {
-                }
-                .buttonStyle(FriendlyButtonStyle(color: .accentColor))
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
@@ -395,11 +453,9 @@ struct BlockView: View {
         Divider()
 
         Button("Explain") {
+            AIManager.shared.explainError(for: block)
         }
-
-        Button("Fix it") {
-        }
-        .disabled(block.succeeded)
+        .disabled(!block.failed)
     }
 }
 
@@ -740,6 +796,7 @@ private func blockListPreviewSession() -> SessionState {
 #Preview {
     BlockListView()
         .environment(blockListPreviewSession())
+        .environment(Workspace())
         .frame(width: 800, height: 500)
 }
 #endif

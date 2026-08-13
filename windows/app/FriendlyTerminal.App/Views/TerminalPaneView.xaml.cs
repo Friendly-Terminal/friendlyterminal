@@ -261,13 +261,13 @@ public sealed partial class TerminalPaneView : UserControl
         switch (e.PropertyName)
         {
             case nameof(SessionState.IsTuiActive):
-            case nameof(SessionState.IsClaudeRunning):
+            case nameof(SessionState.IsAgentRunning):
                 var tui = Session.IsTuiActive;
                 Xterm.Visibility = tui ? Visibility.Visible : Visibility.Collapsed;
                 BlockList.Visibility = tui ? Visibility.Collapsed : Visibility.Visible;
-                // While Claude runs, the command bar is the input surface, not xterm.
-                Xterm.IsHitTestVisible = tui && !Session.IsClaudeRunning;
-                if (tui && !Session.IsClaudeRunning)
+                // While an agent runs, the command bar is the input surface, not xterm.
+                Xterm.IsHitTestVisible = tui && !Session.IsAgentRunning;
+                if (tui && !Session.IsAgentRunning)
                     Xterm.Focus(FocusState.Programmatic);
                 break;
             case nameof(SessionState.CurrentDirectory):

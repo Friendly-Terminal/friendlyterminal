@@ -1,5 +1,5 @@
 <UserControl
-    x:Class="FriendlyTerminal.App.Views.ClaudeControlBarView"
+    x:Class="FriendlyTerminal.App.Views.AgentControlBarView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
@@ -13,16 +13,18 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <FontIcon
+                        x:Name="HeaderIcon"
                         FontFamily="{StaticResource SymbolThemeFontFamily}"
                         FontSize="12"
                         Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                         Glyph="&#xE99A;" />
                     <TextBlock
+                        x:Name="HeaderText"
                         Grid.Column="1"
                         VerticalAlignment="Center"
                         FontSize="11"
                         FontWeight="SemiBold"
-                        Text="Claude Code" />
+                        Text="Agent" />
                     <StackPanel
                         Grid.Column="2"
                         VerticalAlignment="Center"
@@ -58,10 +60,11 @@
                         Foreground="{ThemeResource SystemFillColorCautionBrush}"
                         Glyph="&#xE7BA;" />
                     <TextBlock
+                        x:Name="DangerText"
                         FontSize="9"
                         FontWeight="Medium"
                         Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                        Text="Auto-approve mode — Claude can act without asking"
+                        Text="Auto-approve mode"
                         TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
@@ -200,16 +203,17 @@
 
             <StackPanel Padding="12,10" Spacing="4">
                 <Button
+                    x:Name="ExitButton"
                     HorizontalAlignment="Stretch"
-                    AutomationProperties.Name="Exit Claude"
-                    Click="OnExit"
-                    ToolTipService.ToolTip="Send /exit — end the Claude session">
+                    AutomationProperties.Name="Exit agent"
+                    Click="OnExit">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="11" Glyph="&#xE7E8;" />
-                        <TextBlock FontSize="11" FontWeight="Medium" Text="Exit Claude" />
+                        <TextBlock x:Name="ExitLabel" FontSize="11" FontWeight="Medium" Text="Exit" />
                     </StackPanel>
                 </Button>
                 <TextBlock
+                    x:Name="ExitHint"
                     HorizontalAlignment="Center"
                     FontSize="9"
                     Opacity="0.5"

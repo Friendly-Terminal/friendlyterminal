@@ -33,6 +33,9 @@ public sealed partial class MainWindow : Window
 
         Closed += OnClosed;
 
+        // 30-day retention for the app trash; the trash panel dialog mentions it.
+        Task.Run(() => Models.WindowsFileSystem.PurgeAppTrash(TimeSpan.FromDays(30)));
+
         try { SystemBackdrop = new MicaBackdrop(); }
         catch { /* Mica isn't available on this OS build; fall back to the default backdrop. */ }
 
@@ -131,6 +134,19 @@ public sealed partial class MainWindow : Window
     }
 
     // MARK: - Sidebar & shortcuts
+
+    private async void OnOpenTrash(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Trash",
+            Content = new TrashPanelView(),
+            CloseButtonText = "Done",
+            XamlRoot = RootGrid.XamlRoot,
+        };
+        await dialog.ShowAsync();
+        FocusedSession?.RefreshFiles();
+    }
 
     private void ToggleSidebar()
     {

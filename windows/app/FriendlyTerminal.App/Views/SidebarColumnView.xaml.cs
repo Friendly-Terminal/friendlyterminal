@@ -6,8 +6,8 @@ namespace FriendlyTerminal.App.Views;
 
 /// <summary>
 /// The left column: files on top; below, the panel follows what the terminal is
-/// doing - Claude controls while Claude runs, program hints while another TUI
-/// owns the keyboard, otherwise project commands + command help.
+/// doing - agent controls while a recognized AI agent runs, program hints while
+/// another TUI owns the keyboard, otherwise project commands + command help.
 /// </summary>
 public sealed partial class SidebarColumnView : UserControl
 {
@@ -28,7 +28,7 @@ public sealed partial class SidebarColumnView : UserControl
             FilesView.Session = value;
             HelpView.Session = value;
             ProjectView.Session = value;
-            ClaudeBar.Session = value;
+            AgentBar.Session = value;
             HintView.Session = value;
             if (_session is not null)
                 _session.PropertyChanged += OnSessionChanged;
@@ -43,21 +43,21 @@ public sealed partial class SidebarColumnView : UserControl
 
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SessionState.IsTuiActive) or nameof(SessionState.IsClaudeRunning))
+        if (e.PropertyName is nameof(SessionState.IsTuiActive) or nameof(SessionState.IsAgentRunning))
             UpdateMode();
     }
 
     private void UpdateMode()
     {
         var tui = _session?.IsTuiActive == true;
-        var claude = _session?.IsClaudeRunning == true;
+        var agent = _session?.IsAgentRunning == true;
 
-        ClaudeBar.Visibility = tui && claude ? Visibility.Visible : Visibility.Collapsed;
-        HintView.Visibility = tui && !claude ? Visibility.Visible : Visibility.Collapsed;
+        AgentBar.Visibility = tui && agent ? Visibility.Visible : Visibility.Collapsed;
+        HintView.Visibility = tui && !agent ? Visibility.Visible : Visibility.Collapsed;
         HelpStack.Visibility = tui ? Visibility.Collapsed : Visibility.Visible;
 
-        if (tui && claude)
-            ClaudeBar.Render();
+        if (tui && agent)
+            AgentBar.Render();
         else if (tui)
             HintView.Render();
     }

@@ -22,6 +22,7 @@ public sealed class CommandBlock : INotifyPropertyChanged
     private string? _didYouMean;
     private InstallableTool? _missingTool;
     private TimeSpan? _duration;
+    private bool _finishedUnknown;
 
     public CommandBlock(string command, string cwd)
     {
@@ -88,7 +89,19 @@ public sealed class CommandBlock : INotifyPropertyChanged
         set => SetField(ref _duration, value);
     }
 
-    public bool IsRunning => _exitCode is null;
+    /// <summary>The block was abandoned (e.g. stale-block self-heal) - it ended, but no
+    /// exit code was ever reported, so it neither succeeded nor failed.</summary>
+    public bool FinishedUnknown
+    {
+        get => _finishedUnknown;
+        set
+        {
+            if (SetField(ref _finishedUnknown, value))
+                OnPropertyChanged(nameof(IsRunning));
+        }
+    }
+
+    public bool IsRunning => _exitCode is null && !_finishedUnknown;
     public bool Succeeded => _exitCode == 0;
     public bool Failed => _exitCode is not null and not 0;
 

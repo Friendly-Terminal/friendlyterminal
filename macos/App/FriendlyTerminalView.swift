@@ -117,7 +117,8 @@ final class FriendlyTerminalView: LocalProcessTerminalView {
         guard let urls, !urls.isEmpty else { return false }
         let text = urls.map { url -> String in
             let p = url.path
-            return p.contains(" ") ? "'\(p.replacingOccurrences(of: "'", with: "'\\''"))'" : p
+            let safe = p.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "_./-".contains($0)) }
+            return safe ? p : "'\(p.replacingOccurrences(of: "'", with: "'\\''"))'"
         }.joined(separator: " ")
         send(txt: text)
         return true

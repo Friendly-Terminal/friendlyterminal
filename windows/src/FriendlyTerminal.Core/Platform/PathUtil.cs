@@ -24,6 +24,29 @@ public static class PathUtil
                (char.IsAsciiLetterUpper(c) || char.IsAsciiLetterLower(c));
     }
 
+    /// <summary>Collapses "." and ".." segments (like macOS standardizedFileURL).
+    /// Returns null when ".." would climb above the root.</summary>
+    public static string? Normalize(string path)
+    {
+        var sep = path.Contains('\\') ? '\\' : '/';
+        var prefix = 0;
+        while (prefix < path.Length && (path[prefix] == '/' || path[prefix] == '\\')) prefix++;
+
+        var segs = new List<string>();
+        foreach (var s in path[prefix..].Split(Separators))
+        {
+            if (s.Length == 0 || s == ".") continue;
+            if (s == "..")
+            {
+                if (segs.Count == 0 || segs[^1].EndsWith(':')) return null;
+                segs.RemoveAt(segs.Count - 1);
+            }
+            else segs.Add(s);
+        }
+        var joined = new string(sep, prefix) + string.Join(sep, segs);
+        return joined.Length == 0 ? sep.ToString() : joined;
+    }
+
     public static string LastComponent(string path)
     {
         var trimmed = path.TrimEnd(Separators);

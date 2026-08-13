@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using FriendlyTerminal.App.Models;
+using FriendlyTerminal.Core.Agents;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -13,7 +14,11 @@ namespace FriendlyTerminal.App.Views;
 public sealed partial class BreadcrumbBarView : UserControl
 {
     private SessionState? _session;
-    private readonly ClaudeInstallChecker _checker = ClaudeInstallChecker.Instance;
+    private readonly AgentInstallChecker _checker = AgentInstallChecker.For(AgentRegistry.Claude);
+    private readonly List<AgentInstallChecker> _otherCheckers = AgentRegistry.All
+        .Where(p => p.Id != AgentRegistry.Claude.Id)
+        .Select(AgentInstallChecker.For)
+        .ToList();
 
     public event Action? SidebarToggleRequested;
     public event Action? AddPaneRequested;
@@ -44,9 +49,19 @@ public sealed partial class BreadcrumbBarView : UserControl
     {
         InitializeComponent();
         _checker.PropertyChanged += OnCheckerChanged;
-        Unloaded += (_, _) => _checker.PropertyChanged -= OnCheckerChanged;
+        foreach (var checker in _otherCheckers)
+            checker.PropertyChanged += OnOtherCheckerChanged;
+        Unloaded += (_, _) =>
+        {
+            _checker.PropertyChanged -= OnCheckerChanged;
+            foreach (var checker in _otherCheckers)
+                checker.PropertyChanged -= OnOtherCheckerChanged;
+        };
         _checker.Check();
+        foreach (var checker in _otherCheckers)
+            checker.Check();
         RenderClaudeButton();
+        RenderOtherAgents();
     }
 
     public bool CanAddPane
@@ -63,6 +78,12 @@ public sealed partial class BreadcrumbBarView : UserControl
     }
 
     private void OnCheckerChanged(object? sender, PropertyChangedEventArgs e) => RenderClaudeButton();
+
+    private void OnOtherCheckerChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AgentInstallChecker.AgentState))
+            RenderOtherAgents();
+    }
 
     private void RenderCrumbs()
     {
@@ -130,15 +151,15 @@ public sealed partial class BreadcrumbBarView : UserControl
         ClaudeChecking.Visibility = Visibility.Collapsed;
         ClaudeChecking.IsActive = false;
 
-        switch (_checker.ClaudeState)
+        switch (_checker.AgentState)
         {
-            case ClaudeInstallChecker.State.Installed:
+            case AgentInstallChecker.State.Installed:
                 ClaudeButton.Visibility = Visibility.Visible;
                 break;
-            case ClaudeInstallChecker.State.NotInstalled:
+            case AgentInstallChecker.State.NotInstalled:
                 ClaudeSetupButton.Visibility = Visibility.Visible;
                 break;
-            case ClaudeInstallChecker.State.Checking:
+            case AgentInstallChecker.State.Checking:
                 ClaudeChecking.Visibility = Visibility.Visible;
                 ClaudeChecking.IsActive = true;
                 break;
@@ -158,18 +179,52 @@ public sealed partial class BreadcrumbBarView : UserControl
     // drop to bare `claude` when no path was resolved.
     private string ClaudeCommand(string? args)
     {
-        var path = _checker.ClaudePath;
+        var path = _checker.AgentPath;
         var launcher = string.IsNullOrEmpty(path) ? "claude" : $"& '{path.Replace("'", "''")}'";
         return string.IsNullOrEmpty(args) ? launcher : $"{launcher} {args}";
     }
 
-    private async void OnClaudeDoctor(object sender, RoutedEventArgs e)
+    // Launch entries only render for installed agents, so the resolved path is
+    // normally present; bare basename is the same last resort as ClaudeCommand.
+    private static string AgentCommand(AgentInstallChecker checker)
+    {
+        var path = checker.AgentPath;
+        return string.IsNullOrEmpty(path)
+            ? checker.Profile.BinaryNames[0]
+            : $"& '{path.Replace("'", "''")}'";
+    }
+
+    private void RenderOtherAgents()
+    {
+        var installed = _otherCheckers
+            .Where(c => c.AgentState == AgentInstallChecker.State.Installed)
+            .ToList();
+        OtherAgentsButton.Visibility = installed.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        OtherAgentsFlyout.Items.Clear();
+        foreach (var checker in installed)
+        {
+            if (OtherAgentsFlyout.Items.Count > 0)
+                OtherAgentsFlyout.Items.Add(new MenuFlyoutSeparator());
+            var profile = checker.Profile;
+            var launch = new MenuFlyoutItem { Text = $"Launch {profile.DisplayName}" };
+            launch.Click += (_, _) => _session?.ExecuteCommand(AgentCommand(checker));
+            OtherAgentsFlyout.Items.Add(launch);
+            var doctor = new MenuFlyoutItem { Text = $"{profile.DisplayName} Setup & Doctor…" };
+            doctor.Click += async (_, _) => await ShowDoctorAsync(profile);
+            OtherAgentsFlyout.Items.Add(doctor);
+        }
+    }
+
+    private async void OnClaudeDoctor(object sender, RoutedEventArgs e) =>
+        await ShowDoctorAsync(AgentRegistry.Claude);
+
+    private async Task ShowDoctorAsync(AgentProfile profile)
     {
         if (_session is null) return;
-        var view = new ClaudeDoctorView(_session);
+        var view = new AgentDoctorView(_session, profile);
         var dialog = new ContentDialog
         {
-            Title = "Claude Code Setup",
+            Title = $"{profile.DisplayName} Setup",
             Content = view,
             CloseButtonText = "Done",
             XamlRoot = XamlRoot,

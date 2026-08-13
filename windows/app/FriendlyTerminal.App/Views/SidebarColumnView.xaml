@@ -15,7 +15,7 @@
         <Border Grid.Row="1" Height="1" HorizontalAlignment="Stretch" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
         <Grid Grid.Row="2">
-            <views:ClaudeControlBarView x:Name="ClaudeBar" Visibility="Collapsed" />
+            <views:AgentControlBarView x:Name="AgentBar" Visibility="Collapsed" />
             <views:InteractiveHintView x:Name="HintView" Visibility="Collapsed" />
             <Grid x:Name="HelpStack">
                 <Grid.RowDefinitions>

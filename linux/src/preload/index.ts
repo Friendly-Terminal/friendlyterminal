@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppCommand, FriendlyTerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/api";
 
+declare module "../shared/api" {
+  interface FriendlyTerminalApi {
+    clipboard: {
+      writeSelection(text: string): void;
+    };
+    home(): string;
+  }
+}
+
 const api: FriendlyTerminalApi = {
   terminal: {
     create: (request) => ipcRenderer.invoke("terminal:create", request),
@@ -27,6 +36,10 @@ const api: FriendlyTerminalApi = {
   git: {
     status: (path) => ipcRenderer.invoke("git:status", path)
   },
+  clipboard: {
+    writeSelection: (text) => ipcRenderer.send("clipboard-write-selection", text)
+  },
+  home: () => process.env.HOME ?? "/",
   app: {
     version: () => ipcRenderer.invoke("app:version"),
     openExternal: (url) => ipcRenderer.invoke("app:open-external", url),

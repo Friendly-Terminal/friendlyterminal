@@ -12,6 +12,7 @@
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <Button
@@ -109,9 +110,26 @@
                 Visibility="Collapsed" />
         </Grid>
 
+        <DropDownButton
+            x:Name="OtherAgentsButton"
+            Grid.Column="4"
+            Height="26"
+            Padding="8,0"
+            AutomationProperties.Name="Other AI agents"
+            ToolTipService.ToolTip="Other installed AI agents"
+            Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE99A;" />
+                <TextBlock FontSize="12" FontWeight="Medium" Text="Agents" />
+            </StackPanel>
+            <DropDownButton.Flyout>
+                <MenuFlyout x:Name="OtherAgentsFlyout" Placement="BottomEdgeAlignedRight" />
+            </DropDownButton.Flyout>
+        </DropDownButton>
+
         <Button
             x:Name="ProcessButton"
-            Grid.Column="4"
+            Grid.Column="5"
             Width="32"
             Height="32"
             Padding="0"
@@ -125,7 +143,7 @@
 
         <Button
             x:Name="RefreshButton"
-            Grid.Column="5"
+            Grid.Column="6"
             Width="32"
             Height="32"
             Padding="0"
@@ -139,7 +157,7 @@
 
         <Button
             x:Name="AddPaneButton"
-            Grid.Column="6"
+            Grid.Column="7"
             Width="32"
             Height="32"
             Padding="0"

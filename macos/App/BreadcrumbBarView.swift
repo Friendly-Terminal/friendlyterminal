@@ -6,7 +6,12 @@ struct BreadcrumbBarView: View {
     @State private var showingDoctorSheet = false
     @State private var showingGitPanel = false
     @State private var showingProcessPanel = false
-    private let checker = ClaudeInstallChecker.shared
+    @State private var doctorProfile: AgentProfile?
+    private let checker = AgentInstallChecker.shared
+
+    private var otherProfiles: [AgentProfile] {
+        AgentRegistry.all.filter { $0.id != AgentRegistry.claude.id }
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -20,6 +25,7 @@ struct BreadcrumbBarView: View {
             }
             .buttonStyle(.plain)
             .help("Toggle sidebar")
+            .accessibilityLabel("Toggle sidebar")
 
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -76,9 +82,12 @@ struct BreadcrumbBarView: View {
                 .help(git.isDirty
                       ? "\(git.uncommittedCount) uncommitted file(s) — open Source Control"
                       : "Clean working tree — open Source Control")
+                .accessibilityLabel("Open Source Control — branch \(git.branch)")
             }
 
             claudeButton
+
+            otherAgentsMenu
 
             Button {
                 showingProcessPanel = true
@@ -88,6 +97,7 @@ struct BreadcrumbBarView: View {
             }
             .buttonStyle(.plain)
             .help("What's running on this machine")
+            .accessibilityLabel("What's running on this machine")
 
             Button {
                 session.refreshFileItems()
@@ -97,6 +107,7 @@ struct BreadcrumbBarView: View {
             }
             .buttonStyle(.plain)
             .help("Refresh")
+            .accessibilityLabel("Refresh")
 
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { workspace.addPane() }
@@ -107,13 +118,18 @@ struct BreadcrumbBarView: View {
             .buttonStyle(.plain)
             .disabled(!workspace.canAddPane)
             .help("Add another terminal")
+            .accessibilityLabel("Add another terminal")
             .coachmarkTarget(Coachmark.addPane)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(.bar)
         .sheet(isPresented: $showingDoctorSheet) {
-            ClaudeDoctorView()
+            AgentDoctorView()
+                .environment(session)
+        }
+        .sheet(item: $doctorProfile) { profile in
+            AgentDoctorView(fixedProfile: profile)
                 .environment(session)
         }
         .sheet(isPresented: $showingGitPanel) {
@@ -128,28 +144,64 @@ struct BreadcrumbBarView: View {
         }
         .onAppear {
             checker.check()
+            for profile in otherProfiles {
+                AgentInstallChecker.shared(for: profile).check()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var otherAgentsMenu: some View {
+        let installed = otherProfiles.compactMap { profile in
+            AgentInstallChecker.shared(for: profile).installStatus.path.map { (profile, $0) }
+        }
+        if !installed.isEmpty {
+            Menu {
+                ForEach(installed, id: \.0.id) { profile, path in
+                    Menu(profile.displayName) {
+                        Button {
+                            session.executeCommand(AgentRegistry.shellQuote(path))
+                        } label: {
+                            Label("Launch", systemImage: "play")
+                        }
+                        Button {
+                            doctorProfile = profile
+                        } label: {
+                            Label("Setup doctor…", systemImage: "stethoscope")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .help("Other installed AI agents")
+            .accessibilityLabel("Other installed AI agents")
         }
     }
 
     @ViewBuilder
     private var claudeButton: some View {
-        switch checker.claudeStatus {
-        case .installed:
+        switch checker.installStatus {
+        case .installed(let installPath, _):
+            let launch = AgentRegistry.shellQuote(installPath)
             Menu {
                 Button {
-                    session.executeCommand("claude")
+                    session.executeCommand(launch)
                 } label: {
                     Label("New Chat", systemImage: "plus.bubble")
                 }
 
                 Button {
-                    session.executeCommand("claude --continue")
+                    session.executeCommand("\(launch) --continue")
                 } label: {
                     Label("Resume Last Chat", systemImage: "arrow.counterclockwise")
                 }
 
                 Button {
-                    session.executeCommand("claude --resume")
+                    session.executeCommand("\(launch) --resume")
                 } label: {
                     Label("Choose Session…", systemImage: "list.bullet.rectangle")
                 }

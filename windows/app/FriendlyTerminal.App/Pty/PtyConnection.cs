@@ -143,7 +143,7 @@ internal sealed class PtyConnection : IDisposable
                 startup.StartupInfo.cb = Marshal.SizeOf<NativeMethods.STARTUPINFOEX>();
                 startup.lpAttributeList = attrList;
 
-                if (!NativeMethods.CreateProcess(null, command, IntPtr.Zero, IntPtr.Zero, false,
+                if (!NativeMethods.CreateProcess(null, new StringBuilder(command), IntPtr.Zero, IntPtr.Zero, false,
                         NativeMethods.EXTENDED_STARTUPINFO_PRESENT, IntPtr.Zero, null,
                         ref startup, out var proc))
                     throw new InvalidOperationException("CreateProcess failed");

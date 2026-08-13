@@ -24,7 +24,8 @@ struct TerminalBridge: NSViewRepresentable {
 
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
 
-        let env = buildEnvironment()
+        let (env, integrationDir) = buildEnvironment()
+        context.coordinator.integrationDir = integrationDir
         tv.startProcess(executable: shell, args: [], environment: env, execName: nil)
         tv.getTerminal().setCursorStyle(.blinkBar)
 
@@ -32,7 +33,27 @@ struct TerminalBridge: NSViewRepresentable {
             tv?.send(txt: text)
         }
 
+        context.coordinator.fontObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { [weak tv] _ in
+            if let tv { Self.applyFont(tv) }
+        }
+
         return tv
+    }
+
+    static func dismantleNSView(_ nsView: LocalProcessTerminalView, coordinator: Coordinator) {
+        if let observer = coordinator.fontObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        let pid = nsView.process.shellPid
+        if pid > 0 {
+            kill(-pid, SIGHUP)
+            kill(pid, SIGHUP)
+        }
+        if let dir = coordinator.integrationDir {
+            try? FileManager.default.removeItem(at: dir)
+        }
     }
 
     func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
@@ -67,7 +88,19 @@ struct TerminalBridge: NSViewRepresentable {
         )
     }
 
-    private func buildEnvironment() -> [String] {
+    private static let staleIntegrationCleanup: Void = {
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil
+        ) else { return }
+        for url in items where url.lastPathComponent.hasPrefix("FriendlyTerminalIntegration-") {
+            try? fm.removeItem(at: url)
+        }
+    }()
+
+    private func buildEnvironment() -> (env: [String], dir: URL) {
+        _ = Self.staleIntegrationCleanup
+
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("FriendlyTerminalIntegration-\(UUID().uuidString)")
 
@@ -79,12 +112,29 @@ struct TerminalBridge: NSViewRepresentable {
             ?? ProcessInfo.processInfo.environment["HOME"]
             ?? NSHomeDirectory()
 
+        func shq(_ s: String) -> String {
+            "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }
+
+        // Track a user .zshenv that redirects ZDOTDIR (XDG setups), then point
+        // ZDOTDIR back at us so our .zshrc still loads.
+        let zshenv = """
+#!/usr/bin/env zsh
+_ft_zdotdir="$ZDOTDIR"
+export ZDOTDIR_ORIGINAL=\(shq(userZdotdir))
+[[ -f "$ZDOTDIR_ORIGINAL/.zshenv" ]] && source "$ZDOTDIR_ORIGINAL/.zshenv"
+[[ -n "$ZDOTDIR" && "$ZDOTDIR" != "$_ft_zdotdir" ]] && export ZDOTDIR_ORIGINAL="$ZDOTDIR"
+export ZDOTDIR="$_ft_zdotdir"
+unset _ft_zdotdir
+"""
+        try? zshenv.write(to: tmp.appendingPathComponent(".zshenv"), atomically: true, encoding: .utf8)
+
         let zshrc = """
 #!/usr/bin/env zsh
-export ZDOTDIR_ORIGINAL="\(userZdotdir)"
+export ZDOTDIR="$ZDOTDIR_ORIGINAL"
 [[ -f "$ZDOTDIR_ORIGINAL/.zshrc" ]] && source "$ZDOTDIR_ORIGINAL/.zshrc"
 export FRIENDLYTERMINAL_INTEGRATION=1
-[[ -f "\(bundlePath)" ]] && source "\(bundlePath)"
+[[ -f \(shq(bundlePath)) ]] && source \(shq(bundlePath))
 """
         try? zshrc.write(to: tmp.appendingPathComponent(".zshrc"), atomically: true, encoding: .utf8)
 
@@ -93,14 +143,27 @@ export FRIENDLYTERMINAL_INTEGRATION=1
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
 
-        return env.map { "\($0.key)=\($0.value)" }
+        return (env.map { "\($0.key)=\($0.value)" }, tmp)
     }
 
     private func applyAppearance(_ tv: LocalProcessTerminalView) {
         tv.nativeBackgroundColor = NSColor.textBackgroundColor
         tv.nativeForegroundColor = NSColor.textColor
-        tv.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        Self.applyFont(tv)
         tv.caretColor = NSColor.controlAccentColor
+    }
+
+    private static func applyFont(_ tv: LocalProcessTerminalView) {
+        let defaults = UserDefaults.standard
+        let size = CGFloat((defaults.object(forKey: "terminalFontSize") as? Double) ?? 13)
+        // "Menlo" matches SettingsView's @AppStorage default so the picker and
+        // the rendered font agree before the user ever touches the setting.
+        let name = defaults.string(forKey: "terminalFontName") ?? "Menlo"
+        let font = NSFont(name: name, size: size)
+            ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+        if tv.font != font {
+            tv.font = font
+        }
     }
 }
 
@@ -110,6 +173,8 @@ final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
     var onShellEvent: (ShellIntegrationParser.Event) -> Void
     var onTUIChange: (Bool) -> Void
     var onTerminated: (() -> Void)?
+    var integrationDir: URL?
+    var fontObserver: NSObjectProtocol?
 
     init(
         onCwdChange: @escaping (String) -> Void,
@@ -139,13 +204,8 @@ final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
     }
 
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
-        guard let dir = directory else { return }
-        let path: String
-        if let url = URL(string: dir), url.isFileURL {
-            path = url.path
-        } else {
-            path = dir
-        }
+        guard let dir = directory,
+              let path = ShellIntegrationParser.decodeFileURL(dir) else { return }
         onCwdChange(path)
         onShellEvent(.cwdUpdate(path))
     }

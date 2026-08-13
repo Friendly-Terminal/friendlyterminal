@@ -29,7 +29,24 @@
                 Background="{ThemeResource SolidBackgroundFillColorBase}"
                 BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,1,0">
-                <views:SidebarColumnView x:Name="Sidebar" />
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <views:SidebarColumnView x:Name="Sidebar" />
+                    <HyperlinkButton
+                        x:Name="TrashButton"
+                        Grid.Row="1"
+                        Margin="8,2,8,8"
+                        Click="OnOpenTrash"
+                        ToolTipService.ToolTip="Deleted items you can still restore">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE74D;" />
+                            <TextBlock FontSize="12" Text="Trash" />
+                        </StackPanel>
+                    </HyperlinkButton>
+                </Grid>
             </Border>
 
             <Grid

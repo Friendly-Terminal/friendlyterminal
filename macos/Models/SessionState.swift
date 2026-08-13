@@ -7,6 +7,25 @@ struct GitStatus {
     let uncommittedCount: Int
 }
 
+// Spawning /usr/bin/git without the Command Line Tools pops the CLT install
+// dialog; check once, off the shim, before ever launching git.
+private let hasRealGit: Bool = {
+    let fm = FileManager.default
+    if fm.fileExists(atPath: "/Library/Developer/CommandLineTools/usr/bin/git") { return true }
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
+    p.arguments = ["-p"]
+    let pipe = Pipe()
+    p.standardOutput = pipe
+    p.standardError = FileHandle.nullDevice
+    do { try p.run() } catch { return false }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    p.waitUntilExit()
+    guard p.terminationStatus == 0 else { return false }
+    let dir = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return !dir.isEmpty && fm.fileExists(atPath: dir + "/usr/bin/git")
+}()
+
 @Observable
 @MainActor
 final class SessionState: Identifiable {
@@ -15,6 +34,19 @@ final class SessionState: Identifiable {
     var windowTitle: String = "FriendlyTerminal"
 
     var cwd: String = FileManager.default.homeDirectoryForCurrentUser.path
+
+    @ObservationIgnored private var pendingRestoreCwd: String?
+    @ObservationIgnored var onCwdChange: (() -> Void)?
+
+    init(restoredCwd: String? = nil) {
+        var isDir: ObjCBool = false
+        if let restoredCwd,
+           FileManager.default.fileExists(atPath: restoredCwd, isDirectory: &isDir),
+           isDir.boolValue {
+            cwd = restoredCwd
+            pendingRestoreCwd = restoredCwd
+        }
+    }
 
     var gitStatus: GitStatus? = nil
     @ObservationIgnored private var gitTask: Task<Void, Never>? = nil
@@ -43,36 +75,41 @@ final class SessionState: Identifiable {
     private(set) var commandBarDraft: String = ""
     private(set) var commandBarRequestToken: Int = 0
 
-    var sendToShell: ((String) -> Void)?
+    var sendToShell: ((String) -> Void)? {
+        didSet {
+            guard sendToShell != nil, let path = pendingRestoreCwd else { return }
+            pendingRestoreCwd = nil
+            navigateShellTo(path)
+        }
+    }
+
+    var activeAgent: AgentProfile? {
+        guard isTUIActive else { return nil }
+        return AgentRegistry.match(blockStore.currentBlock?.command ?? "")
+    }
+
+    var isAgentRunning: Bool {
+        activeAgent != nil
+    }
 
     var isClaudeRunning: Bool {
-        guard isTUIActive else { return false }
-        return Self.isClaudeCommand(blockStore.currentBlock?.command ?? "")
+        isAgentRunning
     }
 
-    var currentClaudeCommand: String? {
-        isClaudeRunning ? blockStore.currentBlock?.command : nil
+    var currentAgentCommand: String? {
+        isAgentRunning ? blockStore.currentBlock?.command : nil
     }
 
-    var claudeRunsWithDangerousFlag: Bool {
-        currentClaudeCommand?.contains("--dangerously-skip-permissions") ?? false
+    var agentRunsWithDangerousFlag: Bool {
+        guard let agent = activeAgent, let command = currentAgentCommand else { return false }
+        let tokens = AgentRegistry.tokenize(command)
+        return agent.dangerFlags.contains { flag in
+            tokens.contains { $0 == flag || (flag.hasPrefix("--") && $0.hasPrefix(flag + "=")) }
+        }
     }
 
     func sendRaw(_ text: String) {
         sendToShell?(text)
-    }
-
-    static func isClaudeCommand(_ command: String) -> Bool {
-        let lastStage = command.split(separator: "|").last.map(String.init) ?? command
-        let tokens = lastStage
-            .split(whereSeparator: { $0 == " " || $0 == "\t" })
-            .map(String.init)
-        for token in tokens {
-            if token.contains("=") { continue }
-            if ["sudo", "command", "exec", "time", "env"].contains(token) { continue }
-            return (token as NSString).lastPathComponent.lowercased() == "claude"
-        }
-        return false
     }
 
     func prefillCommand(_ command: String) {
@@ -84,6 +121,7 @@ final class SessionState: Identifiable {
         cwd = path
         refreshFileItems()
         refreshGitStatus()
+        onCwdChange?()
     }
 
     func refreshGitStatus() {
@@ -101,17 +139,19 @@ final class SessionState: Identifiable {
     }
 
     nonisolated private static func queryGitStatus(at path: String) -> GitStatus? {
+        guard hasRealGit else { return nil }
         func run(_ args: [String]) -> String? {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
             p.arguments = ["-C", path] + args
             let pipe = Pipe()
             p.standardOutput = pipe
-            p.standardError = Pipe()
-            try? p.run()
+            p.standardError = FileHandle.nullDevice
+            do { try p.run() } catch { return nil }
+            // drain before waiting or a full pipe buffer deadlocks
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
             guard p.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -130,6 +170,11 @@ final class SessionState: Identifiable {
 
     func executeCommand(_ command: String) {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A running program owns stdin — command text would be typed into it.
+        if isTUIActive || blockStore.currentBlock != nil {
+            blockStore.appendOutput(plain: "\n[not sent — a command is still running] \(trimmed)\n", attributed: nil)
+            return
+        }
         if interceptDeletion(trimmed) { return }
         pendingUndo = UndoPlanner.plan(command: trimmed, cwd: cwd).map { (trimmed, $0) }
 
@@ -153,19 +198,36 @@ final class SessionState: Identifiable {
     }
 
     func performUndo(_ block: CommandBlock) {
+        // undo commands typed into a TUI or a running program would be garbage input
+        guard !isTUIActive, blockStore.currentBlock == nil else { return }
         guard let plan = block.undoPlan, !block.isUndone else { return }
         let fm = FileManager.default
+        var failures: [String] = []
         for action in plan.actions {
             switch action {
             case .shell(let cmd):
                 sendToShell?(cmd + "\n")
             case .trash(let path):
-                try? fm.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
+                do {
+                    try fm.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
+                } catch {
+                    failures.append("Couldn't trash \((path as NSString).lastPathComponent): \(error.localizedDescription)")
+                }
             case .restore(let trashed, let original):
-                try? fm.moveItem(atPath: trashed, toPath: original)
+                do {
+                    try fm.moveItem(atPath: trashed, toPath: original)
+                } catch {
+                    failures.append("Couldn't restore \((original as NSString).lastPathComponent): \(error.localizedDescription) — still in the Trash")
+                }
             }
         }
-        block.isUndone = true
+        if failures.isEmpty {
+            block.isUndone = true
+        } else {
+            let msg = failures.joined(separator: "\n") + "\n"
+            block.plainText += msg
+            block.outputText += AttributedString(msg)
+        }
         refreshFileItems()
         refreshGitStatus()
     }
@@ -175,6 +237,7 @@ final class SessionState: Identifiable {
 
         var restores: [UndoAction] = []
         var moved: [String] = []
+        var failed: [String] = []
         for url in targets {
             var trashedURL: NSURL?
             do {
@@ -184,25 +247,29 @@ final class SessionState: Identifiable {
                     restores.append(.restore(trashed: trashedPath, original: url.path))
                 }
             } catch {
+                failed.append("\(url.lastPathComponent) (\(error.localizedDescription))")
             }
         }
 
         blockStore.startBlock(command: command, cwd: cwd)
-        if moved.isEmpty {
-            blockStore.appendOutput(plain: "Couldn't move those items to the Trash.\n", attributed: nil)
-            blockStore.finishBlock(exitCode: 1)
-        } else {
+        if !moved.isEmpty {
             blockStore.appendOutput(
                 plain: "Moved \(moved.count) item\(moved.count == 1 ? "" : "s") to the Trash: \(moved.joined(separator: ", "))\n",
                 attributed: nil
             )
-            blockStore.finishBlock(exitCode: 0)
-            if let block = blockStore.lastFinishedBlock, !restores.isEmpty {
-                block.undoPlan = UndoPlan(
-                    label: "Undo delete (restore \(restores.count) item\(restores.count == 1 ? "" : "s"))",
-                    actions: restores
-                )
-            }
+        }
+        if !failed.isEmpty {
+            blockStore.appendOutput(
+                plain: "Couldn't move \(failed.count) item\(failed.count == 1 ? "" : "s") to the Trash: \(failed.joined(separator: ", "))\n",
+                attributed: nil
+            )
+        }
+        blockStore.finishBlock(exitCode: failed.isEmpty ? 0 : 1)
+        if let block = blockStore.lastFinishedBlock, !restores.isEmpty {
+            block.undoPlan = UndoPlan(
+                label: "Undo delete (restore \(restores.count) item\(restores.count == 1 ? "" : "s"))",
+                actions: restores
+            )
         }
         refreshFileItems()
         return true

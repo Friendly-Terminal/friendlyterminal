@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { open, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { shell } from "electron";
@@ -50,8 +50,35 @@ export async function listDirectory(pathValue: unknown, showHidden: boolean): Pr
   };
 }
 
+async function hasExecutableMagic(targetPath: string): Promise<boolean> {
+  const handle = await open(targetPath, "r");
+  try {
+    const buffer = Buffer.alloc(4);
+    const { bytesRead } = await handle.read(buffer, 0, 4, 0);
+    if (bytesRead >= 2 && buffer[0] === 0x23 && buffer[1] === 0x21) return true; // "#!"
+    if (bytesRead >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) return true; // "MZ"
+    return bytesRead >= 4 && buffer.readUInt32BE(0) === 0x7f454c46; // ELF
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function openPath(pathValue: unknown): Promise<string> {
   const targetPath = requireAbsolutePath(pathValue, "path");
+  try {
+    const metadata = await stat(targetPath);
+    // ponytail: exec bit alone false-positives on vfat/ntfs mounts, so also sniff magic bytes
+    if (
+      metadata.isFile() &&
+      (targetPath.endsWith(".desktop") ||
+        ((metadata.mode & 0o111) !== 0 && (await hasExecutableMagic(targetPath))))
+    ) {
+      shell.showItemInFolder(targetPath);
+      return "";
+    }
+  } catch {
+    // fall through; shell.openPath reports the error
+  }
   return shell.openPath(targetPath);
 }
 

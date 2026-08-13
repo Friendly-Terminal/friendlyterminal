@@ -81,7 +81,7 @@ renderer that created them and are closed when that renderer exits.
 | `Ctrl+Shift+W` | Close active pane |
 | `Ctrl+Shift+P` | Open command guide |
 | `Ctrl+Shift+F` | Find in active terminal |
-| `Ctrl+K` | Focus command bar |
-| `Ctrl+B` | Toggle sidebar |
+| `Ctrl+Shift+K` | Focus command bar |
+| `Ctrl+Shift+B` | Toggle sidebar |
 | `Ctrl++` / `Ctrl+-` | Change terminal text size |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy / paste in terminal |

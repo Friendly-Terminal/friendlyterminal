@@ -95,6 +95,7 @@ struct CommandHelpView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Back")
             } else {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 11, weight: .semibold))
@@ -116,6 +117,7 @@ struct CommandHelpView: View {
             }
             .buttonStyle(.plain)
             .help("Choose which command groups to show")
+            .accessibilityLabel("Choose which command groups to show")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -137,6 +139,7 @@ struct CommandHelpView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Clear search")
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 10)
@@ -358,6 +361,7 @@ struct CommandHelpView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Run this command now")
+                .accessibilityLabel("Run this command now")
             }
         }
     }

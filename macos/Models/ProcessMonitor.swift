@@ -70,10 +70,11 @@ final class ProcessMonitor {
         process.arguments = ["-nP", "-iTCP", "-sTCP:LISTEN"]
         let outPipe = Pipe()
         process.standardOutput = outPipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return [] }
-        process.waitUntilExit()
+        // Drain stdout before waiting so a full pipe buffer can't deadlock.
         let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         guard let output = String(data: data, encoding: .utf8) else { return [] }
         return parseOutput(output)
     }

@@ -47,6 +47,7 @@ struct ProcessPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Refresh")
+                .accessibilityLabel("Refresh")
             }
 
             Button("Done") { dismiss() }

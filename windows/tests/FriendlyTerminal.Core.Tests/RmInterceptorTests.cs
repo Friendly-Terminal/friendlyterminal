@@ -46,13 +46,13 @@ public class RmInterceptorTests
 
     [Theory]
     [InlineData("Remove-Item -Recurse -Force build")]
-    [InlineData("del build")]
-    [InlineData("rd build")]
-    [InlineData("ri build")]
-    [InlineData("erase build")]
-    [InlineData("rmdir build")]
+    [InlineData("del -r build")]
+    [InlineData("rd -r build")]
+    [InlineData("ri -r build")]
+    [InlineData("erase -r build")]
+    [InlineData("rmdir -r build")]
     [InlineData("Rm -rf build")]
-    [InlineData("REMOVE-ITEM build")]
+    [InlineData("REMOVE-ITEM -Recurse build")]
     [InlineData("rm -re -fo build")]
     public void Recognizes_powershell_deletion_forms(string command)
     {
@@ -89,5 +89,51 @@ public class RmInterceptorTests
     {
         var fs = new FakeFileSystem().AddDir("/Users/test/project/build");
         Assert.Null(new RmInterceptor(fs).SafeTargets("rm \"build", Cwd));
+    }
+
+    [Theory]
+    [InlineData("rm -rf .")]
+    [InlineData("rm -rf ..")]
+    [InlineData("rm -rf ../project")]
+    [InlineData("rm -rf ./..")]
+    [InlineData("rm -rf /Users/test/project")]
+    [InlineData("rm -rf /Users/test")]
+    public void Rejects_cwd_and_ancestors_including_dot_dot_forms(string command)
+    {
+        var fs = new FakeFileSystem()
+            .AddDir("/Users/test")
+            .AddDir("/Users/test/project")
+            .AddDir("/Users/test/project/build");
+        Assert.Null(new RmInterceptor(fs).SafeTargets(command, Cwd));
+    }
+
+    [Theory]
+    [InlineData("rm -rf ./build")]
+    [InlineData("rm -rf ././build")]
+    [InlineData("rm -rf sub/../build")]
+    public void Normalizes_dot_segments_and_still_intercepts(string command)
+    {
+        var fs = new FakeFileSystem()
+            .AddDir("/Users/test/project/sub")
+            .AddDir("/Users/test/project/build");
+        var targets = new RmInterceptor(fs).SafeTargets(command, Cwd);
+        Assert.Equal(new[] { "/Users/test/project/build" }, targets);
+    }
+
+    [Fact]
+    public void Declines_directory_target_without_recursive_flag()
+    {
+        var fs = new FakeFileSystem().AddDir("/Users/test/project/build");
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm build", Cwd));
+        Assert.Null(new RmInterceptor(fs).SafeTargets("del build", Cwd));
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm -f build", Cwd));
+    }
+
+    [Fact]
+    public void Accepts_file_target_without_flags()
+    {
+        var fs = new FakeFileSystem().AddFile("/Users/test/project/a.txt");
+        var targets = new RmInterceptor(fs).SafeTargets("rm a.txt", Cwd);
+        Assert.Equal(new[] { "/Users/test/project/a.txt" }, targets);
     }
 }

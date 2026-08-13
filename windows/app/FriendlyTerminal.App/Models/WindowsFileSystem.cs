@@ -51,7 +51,7 @@ public sealed class WindowsFileSystem : IFileSystem
         return entries;
     }
 
-    public void MoveToTrash(string path)
+    public bool MoveToTrash(string path)
     {
         try
         {
@@ -59,11 +59,16 @@ public sealed class WindowsFileSystem : IFileSystem
                 FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
             else if (File.Exists(path))
                 FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            return true;
         }
-        catch { /* best effort - leaving the item in place is the safe failure */ }
+        catch
+        {
+            // Leaving the item in place is the safe failure; the caller reports it.
+            return false;
+        }
     }
 
-    public void RestoreFromTrash(string trashedPath, string originalPath)
+    public bool RestoreFromTrash(string trashedPath, string originalPath)
     {
         try
         {
@@ -71,8 +76,14 @@ public sealed class WindowsFileSystem : IFileSystem
                 Directory.Move(trashedPath, originalPath);
             else if (File.Exists(trashedPath))
                 File.Move(trashedPath, originalPath);
+            else
+                return false;
+            return true;
         }
-        catch { }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -83,14 +94,28 @@ public sealed class WindowsFileSystem : IFileSystem
     {
         try
         {
+            // Directory.Move can't cross volumes, so other drives get their own trash.
+            var trashRoot = AppTrashDirectory;
+            var volume = Path.GetPathRoot(Path.GetFullPath(path));
+            if (!string.IsNullOrEmpty(volume) &&
+                !string.Equals(volume, Path.GetPathRoot(trashRoot), StringComparison.OrdinalIgnoreCase))
+                trashRoot = Path.Combine(volume, ".FriendlyTerminalTrash");
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-            var dir = Path.Combine(AppTrashDirectory, stamp);
+            var dir = Path.Combine(trashRoot, stamp);
+            for (var i = 1; Directory.Exists(dir); i++)
+                dir = Path.Combine(trashRoot, $"{stamp}-{i}");
             Directory.CreateDirectory(dir);
+            // Drive-root trash has no AppData cover; hide it from listings.
+            try { File.SetAttributes(trashRoot, File.GetAttributes(trashRoot) | FileAttributes.Hidden); }
+            catch { }
             var dest = Path.Combine(dir, Path.GetFileName(path.TrimEnd('\\', '/')));
             if (Directory.Exists(path))
                 Directory.Move(path, dest);
             else
                 File.Move(path, dest);
+            // Sidecar so the trash panel can restore later; losing it only costs restore.
+            try { File.WriteAllText(Path.Combine(dir, MetaFileName), Path.GetFullPath(path)); }
+            catch { }
             return dest;
         }
         catch
@@ -98,4 +123,142 @@ public sealed class WindowsFileSystem : IFileSystem
             return null;
         }
     }
+
+    // MARK: - Trash panel helpers
+
+    private const string MetaFileName = ".ft-original";
+
+    private static IEnumerable<string> TrashRoots()
+    {
+        yield return AppTrashDirectory;
+        DriveInfo[] drives;
+        try { drives = DriveInfo.GetDrives(); }
+        catch { yield break; }
+        foreach (var drive in drives)
+        {
+            string root;
+            try
+            {
+                if (!drive.IsReady) continue;
+                root = Path.Combine(drive.RootDirectory.FullName, ".FriendlyTerminalTrash");
+            }
+            catch { continue; }
+            if (Directory.Exists(root))
+                yield return root;
+        }
+    }
+
+    public static IReadOnlyList<TrashEntry> ListAppTrash()
+    {
+        var entries = new List<TrashEntry>();
+        foreach (var root in TrashRoots())
+        {
+            string[] stampDirs;
+            try { stampDirs = Directory.GetDirectories(root); }
+            catch { continue; }
+            foreach (var dir in stampDirs)
+            {
+                List<string> items;
+                DateTime trashedAt;
+                string? original = null;
+                try
+                {
+                    items = Directory.EnumerateFileSystemEntries(dir)
+                        .Where(p => !string.Equals(Path.GetFileName(p), MetaFileName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    trashedAt = Directory.GetCreationTime(dir);
+                    var meta = Path.Combine(dir, MetaFileName);
+                    // The sidecar names one item's origin; ambiguous with several items.
+                    if (items.Count == 1 && File.Exists(meta))
+                        original = File.ReadAllText(meta).Trim();
+                }
+                catch { continue; }
+                foreach (var item in items)
+                {
+                    entries.Add(new TrashEntry(
+                        Path.GetFileName(item),
+                        item,
+                        string.IsNullOrEmpty(original) ? null : original,
+                        Path.GetPathRoot(item) ?? "",
+                        SizeOf(item),
+                        trashedAt));
+                }
+            }
+        }
+        return entries.OrderByDescending(e => e.TrashedAt).ToList();
+    }
+
+    public static bool RestoreTrashEntry(TrashEntry entry)
+    {
+        if (entry.OriginalPath is null || Instance.Exists(entry.OriginalPath)) return false;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(entry.OriginalPath)!); }
+        catch { }
+        if (!Instance.RestoreFromTrash(entry.TrashedPath, entry.OriginalPath)) return false;
+        // Only the sidecar remains in the stamp folder.
+        try { Directory.Delete(Path.GetDirectoryName(entry.TrashedPath)!, recursive: true); }
+        catch { }
+        return true;
+    }
+
+    public static void EmptyAppTrash()
+    {
+        foreach (var root in TrashRoots())
+        {
+            string[] children;
+            try { children = Directory.GetFileSystemEntries(root); }
+            catch { continue; }
+            foreach (var child in children)
+            {
+                try
+                {
+                    if (Directory.Exists(child)) Directory.Delete(child, recursive: true);
+                    else File.Delete(child);
+                }
+                catch { }
+            }
+        }
+    }
+
+    public static void PurgeAppTrash(TimeSpan maxAge)
+    {
+        var cutoff = DateTime.Now - maxAge;
+        foreach (var root in TrashRoots())
+        {
+            string[] stampDirs;
+            try { stampDirs = Directory.GetDirectories(root); }
+            catch { continue; }
+            foreach (var dir in stampDirs)
+            {
+                try
+                {
+                    if (Directory.GetCreationTime(dir) < cutoff)
+                        Directory.Delete(dir, recursive: true);
+                }
+                catch { }
+            }
+        }
+    }
+
+    // ponytail: full recursive walk per listing; cache sizes if trash gets huge.
+    private static long SizeOf(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) return new FileInfo(path).Length;
+            return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+                .Sum(f => { try { return new FileInfo(f).Length; } catch { return 0L; } });
+        }
+        catch
+        {
+            return 0;
+        }
+    }
 }
+
+public sealed record TrashEntry(
+    string Name,
+    string TrashedPath,
+    string? OriginalPath,
+    string Volume,
+    long SizeBytes,
+    DateTime TrashedAt);

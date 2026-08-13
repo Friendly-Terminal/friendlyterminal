@@ -2,8 +2,11 @@ import SwiftUI
 
 struct FriendlyTerminalCommands: Commands {
     var body: some Commands {
-        CommandGroup(after: .newItem) {
-            Divider()
+        CommandGroup(after: .textEditing) {
+            Button("Find in Output") {
+                NotificationCenter.default.post(name: .findInBlocks, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: .command)
         }
 
         CommandMenu("Shell") {
@@ -58,4 +61,5 @@ extension Notification.Name {
     static let newPane = Notification.Name("FT.newPane")
     static let startOnboarding = Notification.Name("FT.startOnboarding")
     static let undoLastCommand = Notification.Name("FT.undoLastCommand")
+    static let findInBlocks = Notification.Name("FT.findInBlocks")
 }

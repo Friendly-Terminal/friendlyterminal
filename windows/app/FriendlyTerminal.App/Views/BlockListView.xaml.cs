@@ -50,6 +50,10 @@ public sealed partial class BlockListView : UserControl
                     WatchBlock(item);
                 }
                 break;
+            case NotifyCollectionChangedAction.Remove:
+                for (var i = 0; i < e.OldItems!.Count; i++)
+                    BlocksPanel.Children.RemoveAt(e.OldStartingIndex);
+                break;
             case NotifyCollectionChangedAction.Reset:
                 BlocksPanel.Children.Clear();
                 break;
@@ -73,7 +77,7 @@ public sealed partial class BlockListView : UserControl
         {
             ScrollToBottom();
         }
-        else if (e.PropertyName == nameof(CommandBlock.ExitCode))
+        else if (e.PropertyName is nameof(CommandBlock.ExitCode) or nameof(CommandBlock.FinishedUnknown))
         {
             UpdateChrome();
             ScrollToBottom();

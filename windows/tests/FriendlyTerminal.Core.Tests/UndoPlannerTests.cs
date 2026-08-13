@@ -97,6 +97,26 @@ public class UndoPlannerTests
     }
 
     [Fact]
+    public void Mkdir_trashes_every_new_folder()
+    {
+        var plan = Planner().Plan("mkdir a b", Cwd);
+        Assert.Equal("Undo: delete 2 new folders", plan!.Label);
+        Assert.Equal(
+            new[] { "/Users/test/project/a", "/Users/test/project/b" },
+            plan.Actions.Select(a => Assert.IsType<UndoAction.Trash>(a).Path));
+    }
+
+    [Fact]
+    public void Mkdir_only_trashes_folders_it_creates()
+    {
+        var fs = new FakeFileSystem().AddDir("/Users/test/project/a");
+        var plan = Planner(fs).Plan("mkdir a b", Cwd);
+        var action = Assert.IsType<UndoAction.Trash>(Assert.Single(plan!.Actions));
+        Assert.Equal("/Users/test/project/b", action.Path);
+        Assert.Contains("b", plan.Label);
+    }
+
+    [Fact]
     public void Zip_over_existing_archive_offers_no_destructive_undo()
     {
         var fs = new FakeFileSystem().AddFile("/Users/test/project/out.zip");
@@ -129,5 +149,58 @@ public class UndoPlannerTests
         Assert.Null(Planner().Plan("zip out.zip build", Cwd, allowPreState: false));
         Assert.Null(Planner().Plan("tar -cf out.tar build", Cwd, allowPreState: false));
         Assert.Null(Planner().Plan("curl -o data.json http://x", Cwd, allowPreState: false));
+    }
+
+    [Fact]
+    public void Mkdir_p_over_existing_folder_offers_no_undo()
+    {
+        var fs = new FakeFileSystem().AddDir("/Users/test/project/build");
+        Assert.Null(Planner(fs).Plan("mkdir -p build", Cwd));
+    }
+
+    [Fact]
+    public void Tar_over_existing_archive_offers_no_destructive_undo()
+    {
+        var fs = new FakeFileSystem().AddFile("/Users/test/project/out.tar");
+        Assert.Null(Planner(fs).Plan("tar -cf out.tar build", Cwd));
+    }
+
+    [Fact]
+    public void Git_add_paths_unstages_them()
+    {
+        var plan = Planner().Plan("git add file.txt", Cwd);
+        var action = Assert.IsType<UndoAction.Shell>(Assert.Single(plan!.Actions));
+        Assert.Equal("git restore --staged file.txt", action.Command);
+    }
+
+    [Theory]
+    [InlineData("git add -A")]
+    [InlineData("git add -u")]
+    [InlineData("git add --all")]
+    [InlineData("git add -n")]
+    [InlineData("git add -p")]
+    public void Git_add_with_flags_offers_no_undo(string command)
+    {
+        Assert.Null(Planner().Plan(command, Cwd));
+    }
+
+    [Fact]
+    public void Git_add_mixing_flags_and_paths_offers_no_undo()
+    {
+        Assert.Null(Planner().Plan("git add -f secret.txt", Cwd));
+    }
+
+    [Fact]
+    public void Cp_only_plans_for_exactly_two_operands()
+    {
+        var fs = new FakeFileSystem()
+            .AddFile("/Users/test/project/a.txt")
+            .AddFile("/Users/test/project/b.txt")
+            .AddDir("/Users/test/project/dest");
+        Assert.Null(Planner(fs).Plan("cp a.txt b.txt dest", Cwd));
+
+        var plan = Planner(fs).Plan("cp a.txt dest", Cwd);
+        var action = Assert.IsType<UndoAction.Trash>(Assert.Single(plan!.Actions));
+        Assert.Equal("/Users/test/project/dest/a.txt", action.Path);
     }
 }

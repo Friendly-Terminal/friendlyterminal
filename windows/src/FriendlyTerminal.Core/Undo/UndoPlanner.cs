@@ -38,11 +38,15 @@ public sealed class UndoPlanner
                     new UndoAction.Shell($"cd {Q(cwd)}"));
 
             case "mkdir":
-                if (!allowPreState || operands.Length == 0) return null;
-                var made = Resolve(operands[^1]);
-                if (_fs.Exists(made)) return null;
-                return One($"Undo: delete folder “{PathUtil.LastComponent(made)}”",
-                    new UndoAction.Trash(made));
+            {
+                if (!allowPreState) return null;
+                var newDirs = operands.Select(Resolve).Where(p => !_fs.Exists(p)).ToArray();
+                if (newDirs.Length == 0) return null;
+                var label = newDirs.Length == 1
+                    ? $"Undo: delete folder “{PathUtil.LastComponent(newDirs[0])}”"
+                    : $"Undo: delete {newDirs.Length} new folders";
+                return new UndoPlan(label, newDirs.Select(p => (UndoAction)new UndoAction.Trash(p)).ToArray());
+            }
 
             case "touch":
             {
@@ -57,7 +61,7 @@ public sealed class UndoPlanner
 
             case "cp":
             {
-                if (!allowPreState || operands.Length < 2) return null;
+                if (!allowPreState || operands.Length != 2) return null;
                 var src = operands[0];
                 var dest = Resolve(operands[^1]);
                 string made2;
@@ -95,9 +99,12 @@ public sealed class UndoPlanner
                 switch (args[0])
                 {
                     case "add":
-                        var rest = string.Join(' ', args.Skip(1));
-                        if (rest.Length == 0) return null;
-                        return One("Undo: unstage", new UndoAction.Shell($"git restore --staged {rest}"));
+                        var addArgs = args.Skip(1).ToArray();
+                        // Flags (-A/-u/-n/-p…) aren't pathspecs and may stage nothing
+                        // (dry run, interactive); decline them all, as macOS does.
+                        if (addArgs.Length == 0 || addArgs.Any(a => a.StartsWith('-'))) return null;
+                        return One("Undo: unstage",
+                            new UndoAction.Shell($"git restore --staged {string.Join(' ', addArgs)}"));
                     case "commit":
                         return One("Undo: undo last commit (keep the changes)",
                             new UndoAction.Shell("git reset --soft HEAD~1"));

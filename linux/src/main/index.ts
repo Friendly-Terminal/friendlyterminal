@@ -1,8 +1,10 @@
 import path from "node:path";
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, Notification, shell } from "electron";
 import type { AppCommand, TerminalCreateRequest } from "../shared/api";
 import { listDirectory, openPath, queryGitStatus, revealPath } from "./system-services";
 import { TerminalManager } from "./terminal-manager";
+
+const repositoryUrl = "https://github.com/Friendly-Terminal/friendlyterminal";
 
 let mainWindow: BrowserWindow | null = null;
 let terminalManager: TerminalManager | null = null;
@@ -35,9 +37,9 @@ function createMenu(): Menu {
     {
       label: "View",
       submenu: [
-        { label: "Toggle Sidebar", accelerator: "Ctrl+B", click: () => sendCommand("toggle-sidebar") },
+        { label: "Toggle Sidebar", accelerator: "Ctrl+Shift+B", click: () => sendCommand("toggle-sidebar") },
         { label: "Command Palette", accelerator: "Ctrl+Shift+P", click: () => sendCommand("command-palette") },
-        { label: "Focus Command Bar", accelerator: "Ctrl+K", click: () => sendCommand("focus-command-bar") },
+        { label: "Focus Command Bar", accelerator: "Ctrl+Shift+K", click: () => sendCommand("focus-command-bar") },
         { type: "separator" },
         { label: "Increase Font Size", accelerator: "Ctrl+=", click: () => sendCommand("increase-font") },
         { label: "Decrease Font Size", accelerator: "Ctrl+-", click: () => sendCommand("decrease-font") },
@@ -49,16 +51,17 @@ function createMenu(): Menu {
     {
       label: "Edit",
       submenu: [
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" }
+        { role: "copy", registerAccelerator: false },
+        { role: "paste", registerAccelerator: false },
+        { role: "selectAll", registerAccelerator: false }
       ]
     },
     {
       label: "Help",
       submenu: [
         { label: "Explore Commands", click: () => sendCommand("command-palette") },
-        { label: "FriendlyTerminal on GitHub", click: () => void import("electron").then(({ shell }) => shell.openExternal("https://github.com/aaditaggarwal26/friendlyterminal")) }
+        { label: "FriendlyTerminal on GitHub", click: () => void shell.openExternal(repositoryUrl) },
+        { label: "Check for Updates…", click: () => void checkForUpdates() }
       ]
     }
   ]);
@@ -75,6 +78,11 @@ function registerIpc(manager: TerminalManager): void {
   ipcMain.on("files:reveal", (_event, pathValue: unknown) => safelyHandle(() => revealPath(pathValue)));
   ipcMain.handle("git:status", (_event, pathValue: unknown) => queryGitStatus(pathValue));
   ipcMain.handle("app:version", () => app.getVersion());
+  ipcMain.on("clipboard-write-selection", (_event, text: unknown) => {
+    if (typeof text === "string" && text.length > 0 && text.length <= 1024 * 1024) {
+      clipboard.writeText(text, "selection");
+    }
+  });
   ipcMain.handle("app:open-external", async (_event, urlValue: unknown) => {
     if (typeof urlValue !== "string" || urlValue.length > 2048) {
       throw new Error("External URL is invalid");
@@ -95,6 +103,80 @@ function safelyHandle(action: () => void): void {
   }
 }
 
+async function fetchLatestVersion(): Promise<string | null> {
+  try {
+    const response = await fetch("https://api.github.com/repos/Friendly-Terminal/friendlyterminal/releases/latest", {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { tag_name?: unknown };
+    return typeof body.tag_name === "string" ? body.tag_name.replace(/^v/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+function isNewerVersion(latest: string, current: string): boolean {
+  const latestParts = latest.split(".").map((part) => Number.parseInt(part, 10));
+  const currentParts = current.split(".").map((part) => Number.parseInt(part, 10));
+  for (let index = 0; index < 3; index += 1) {
+    const latestPart = latestParts[index] ?? 0;
+    const currentPart = currentParts[index] ?? 0;
+    if (Number.isNaN(latestPart) || Number.isNaN(currentPart)) {
+      return false;
+    }
+    if (latestPart !== currentPart) {
+      return latestPart > currentPart;
+    }
+  }
+  return false;
+}
+
+async function checkForUpdates(): Promise<void> {
+  const latest = await fetchLatestVersion();
+  if (latest === null) {
+    await dialog.showMessageBox({
+      type: "warning",
+      message: "Could not check for updates",
+      detail: "Check your network connection and try again."
+    });
+    return;
+  }
+  if (isNewerVersion(latest, app.getVersion())) {
+    const { response } = await dialog.showMessageBox({
+      type: "info",
+      message: `FriendlyTerminal ${latest} is available`,
+      detail: `You are running ${app.getVersion()}.`,
+      buttons: ["View Releases", "Later"],
+      defaultId: 0,
+      cancelId: 1
+    });
+    if (response === 0) {
+      await shell.openExternal(`${repositoryUrl}/releases`);
+    }
+    return;
+  }
+  await dialog.showMessageBox({
+    type: "info",
+    message: "You're up to date",
+    detail: `FriendlyTerminal ${app.getVersion()} is the latest version.`
+  });
+}
+
+function checkForUpdatesAtStartup(): void {
+  void fetchLatestVersion().then((latest) => {
+    if (latest !== null && isNewerVersion(latest, app.getVersion()) && Notification.isSupported()) {
+      new Notification({
+        title: "FriendlyTerminal update available",
+        body: `Version ${latest} is available. See Help → Check for Updates…`
+      }).show();
+    }
+  });
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -108,7 +190,7 @@ function createWindow(): BrowserWindow {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       devTools: !app.isPackaged
     }
   });
@@ -116,7 +198,8 @@ function createWindow(): BrowserWindow {
   window.once("ready-to-show", () => window.show());
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
-  window.webContents.on("destroyed", () => terminalManager?.closeOwner(window.webContents.id));
+  const webContentsId = window.webContents.id;
+  window.webContents.on("destroyed", () => terminalManager?.closeOwner(webContentsId));
   return window;
 }
 
@@ -125,6 +208,7 @@ app.whenReady().then(() => {
   registerIpc(terminalManager);
   Menu.setApplicationMenu(createMenu());
   mainWindow = createWindow();
+  checkForUpdatesAtStartup();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createWindow();

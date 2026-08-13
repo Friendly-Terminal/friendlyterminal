@@ -10,6 +10,7 @@ struct ShellIntegrationParser {
         case commandText(String)
         case cwdUpdate(String)
         case output(String)
+        case outputDiscardLine
         case altScreen(Bool)
         case bracketedPaste(Bool)
     }
@@ -37,13 +38,23 @@ struct ShellIntegrationParser {
         }
 
         if osc.hasPrefix("7;") {
-            var urlString = String(osc.dropFirst(2))
-            if let url = URL(string: urlString), url.isFileURL {
-                urlString = url.path
-            }
-            return .cwdUpdate(urlString)
+            guard let path = decodeFileURL(String(osc.dropFirst(2))) else { return nil }
+            return .cwdUpdate(path)
         }
 
+        return nil
+    }
+
+    /// Decodes an OSC 7 payload into a filesystem path. Returns nil on anything
+    /// malformed — callers must keep the previous cwd rather than use raw text.
+    static func decodeFileURL(_ raw: String) -> String? {
+        if let url = URL(string: raw), url.isFileURL {
+            let path = url.path
+            return path.isEmpty ? nil : path
+        }
+        if raw.hasPrefix("/") {
+            return raw.removingPercentEncoding
+        }
         return nil
     }
 
@@ -65,13 +76,7 @@ struct ShellIntegrationParser {
 
             func flushText() {
                 guard !text.isEmpty else { return }
-                let raw = String(decoding: text, as: UTF8.self)
-                let normalized = raw
-                    .replacingOccurrences(of: "\r\n", with: "\n")
-                    .replacingOccurrences(of: "\r", with: "")
-                if !normalized.isEmpty {
-                    events.append(.output(normalized))
-                }
+                events.append(.output(String(decoding: text, as: UTF8.self)))
                 text = []
             }
 
@@ -81,6 +86,35 @@ struct ShellIntegrationParser {
 
             while i < n {
                 let b = bytes[i]
+
+                if b == 0x0D {
+                    // CR: \r\n is a plain newline; a lone \r means the program is
+                    // overwriting the current line (progress bars), so discard it.
+                    guard i + 1 < n else {
+                        pending = Array(bytes[i...])
+                        brokeEarly = true
+                        break
+                    }
+                    if bytes[i + 1] == 0x0A {
+                        text.append(0x0A)
+                        i += 2
+                    } else if bytes[i + 1] == 0x0D {
+                        // CR run (e.g. \r\r\n from ONLCR on CRLF content): part
+                        // of the line terminator, not an overwrite.
+                        i += 1
+                    } else {
+                        if let nl = text.lastIndex(of: 0x0A) {
+                            text.removeSubrange((nl + 1)...)
+                        } else {
+                            // Line may already be flushed downstream; tell the
+                            // consumer to drop its tail line too.
+                            text = []
+                            events.append(.outputDiscardLine)
+                        }
+                        i += 1
+                    }
+                    continue
+                }
 
                 guard b == 0x1B else {
                     text.append(b)
@@ -162,6 +196,36 @@ struct ShellIntegrationParser {
                         }
                     }
                     i = e + 1
+                    continue
+                } else if c == 0x50 || c == 0x58 || c == 0x5E || c == 0x5F {
+                    // DCS / SOS / PM / APC: swallow payload through ST (ESC \).
+                    // CAN/SUB abort the string; a lone ESC (not followed by \)
+                    // also terminates it and is reprocessed, matching VT parsers.
+                    var j = i + 2
+                    var resume: Int? = nil
+                    while j < n {
+                        let bj = bytes[j]
+                        if bj == 0x18 || bj == 0x1A { resume = j + 1; break }
+                        if bj == 0x1B {
+                            if j + 1 < n {
+                                resume = bytes[j + 1] == 0x5C ? j + 2 : j
+                            }
+                            break
+                        }
+                        j += 1
+                    }
+                    guard let r = resume else {
+                        if n - i > 65536 {
+                            // ponytail: unterminated string introducer — give up
+                            // after 64KB instead of buffering forever.
+                            i = n
+                            continue
+                        }
+                        pending = Array(bytes[i...])
+                        brokeEarly = true
+                        break
+                    }
+                    i = r
                     continue
                 } else if c == 0x28 || c == 0x29 {
                     // Charset designation: ESC ( X / ESC ) X (3 bytes).

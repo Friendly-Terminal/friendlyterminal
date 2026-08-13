@@ -54,6 +54,7 @@ struct TerminalPaneView: View {
             }
             .buttonStyle(.plain)
             .help("Close this terminal")
+            .accessibilityLabel("Close this terminal")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)

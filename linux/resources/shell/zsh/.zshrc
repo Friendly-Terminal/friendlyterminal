@@ -22,13 +22,30 @@ __friendly_terminal_preexec() {
   __friendly_terminal_command_running=1
 }
 
+__friendly_terminal_encode_path() {
+  setopt localoptions nomultibyte
+  local input=$1 out='' i ch
+  for (( i = 1; i <= ${#input}; i++ )); do
+    ch=${input[i]}
+    if [[ $ch == [A-Za-z0-9/_.~-] ]]; then
+      out+=$ch
+    else
+      printf -v ch '%%%02X' "'$ch"
+      out+=$ch
+    fi
+  done
+  REPLY=$out
+}
+
 __friendly_terminal_precmd() {
   local exit_code=$?
   if (( __friendly_terminal_command_running )); then
     printf '\e]133;D;%d\a' "$exit_code"
     __friendly_terminal_command_running=0
   fi
-  printf '\e]7;file://%s%s\a' "$HOST" "$PWD"
+  local REPLY
+  __friendly_terminal_encode_path "$PWD"
+  printf '\e]7;file://%s%s\a' "$HOST" "$REPLY"
   printf '\e]133;A\a'
 }
 

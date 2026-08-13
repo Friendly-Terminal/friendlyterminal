@@ -37,6 +37,6 @@ public sealed class FakeFileSystem : IFileSystem
             .ToList();
     }
 
-    public void MoveToTrash(string path) { }
-    public void RestoreFromTrash(string trashedPath, string originalPath) { }
+    public bool MoveToTrash(string path) => true;
+    public bool RestoreFromTrash(string trashedPath, string originalPath) => true;
 }

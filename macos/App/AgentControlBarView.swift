@@ -1,36 +1,48 @@
 import SwiftUI
 
-struct ClaudeControlBarView: View {
+struct AgentControlBarView: View {
     @Environment(SessionState.self) private var session
     @State private var slashMenuExpanded = false
 
-    private var checker: ClaudeInstallChecker { .shared }
+    private var agent: AgentProfile? { session.activeAgent }
+    private var checker: AgentInstallChecker {
+        .shared(for: session.activeAgent ?? AgentRegistry.claude)
+    }
 
     var body: some View {
+        Group {
+            if let agent {
+                content(for: agent)
+            }
+        }
+        .onAppear { checker.check() }
+    }
+
+    private func content(for agent: AgentProfile) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                header
+                header(for: agent)
                 Divider()
-                navigationSection
+                navigationSection(for: agent)
                 Divider()
                 controlSection
                 Divider()
-                slashSection
+                slashSection(for: agent)
                 Divider()
-                exitSection
+                exitSection(for: agent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    private var header: some View {
+    private func header(for agent: AgentProfile) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles")
+                Image(systemName: agent.symbol)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text("Claude Code")
+                    .foregroundStyle(agent.accentHex.flatMap(Color.init(hex:)) ?? Color.accentColor)
+                Text(agent.displayName)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary)
                 Spacer()
@@ -45,7 +57,7 @@ struct ClaudeControlBarView: View {
                 }
             }
 
-            if let version = checker.claudeStatus.version {
+            if let version = checker.installStatus.version {
                 Text(version)
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
@@ -55,18 +67,18 @@ struct ClaudeControlBarView: View {
         .padding(.top, 8)
         .padding(.bottom, 6)
         .overlay(alignment: .bottom) {
-            if session.claudeRunsWithDangerousFlag {
-                dangerBanner
+            if session.agentRunsWithDangerousFlag {
+                dangerBanner(for: agent)
             }
         }
     }
 
-    private var dangerBanner: some View {
+    private func dangerBanner(for agent: AgentProfile) -> some View {
         HStack(spacing: 5) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 9))
                 .foregroundStyle(.orange)
-            Text("Auto-approve mode — Claude can act without asking")
+            Text("Auto-approve mode — \(agent.displayName) can act without asking")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.orange)
         }
@@ -76,12 +88,12 @@ struct ClaudeControlBarView: View {
         .background(Color.orange.opacity(0.12))
     }
 
-    private var navigationSection: some View {
+    private func navigationSection(for agent: AgentProfile) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("Navigate & select")
 
             HStack(spacing: 6) {
-                claudeButton(
+                agentButton(
                     label: "↑",
                     symbol: "chevron.up",
                     color: .secondary,
@@ -89,7 +101,7 @@ struct ClaudeControlBarView: View {
                 ) {
                     session.sendRaw("\u{1B}[A")
                 }
-                claudeButton(
+                agentButton(
                     label: "↓",
                     symbol: "chevron.down",
                     color: .secondary,
@@ -99,23 +111,26 @@ struct ClaudeControlBarView: View {
                 }
             }
 
-            HStack(spacing: 6) {
-                ForEach(1...4, id: \.self) { n in
-                    Button {
-                        session.sendRaw("\(n)\r")
-                    } label: {
-                        Text("\(n)")
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                            )
+            if agent.supportsNumberedOptions {
+                HStack(spacing: 6) {
+                    ForEach(1...4, id: \.self) { n in
+                        Button {
+                            session.sendRaw("\(n)\r")
+                        } label: {
+                            Text("\(n)")
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Select option \(n)")
+                        .accessibilityLabel("Select option \(n)")
                     }
-                    .buttonStyle(.plain)
-                    .help("Select option \(n)")
                 }
             }
         }
@@ -128,7 +143,7 @@ struct ClaudeControlBarView: View {
             sectionLabel("Controls")
 
             HStack(spacing: 8) {
-                claudeButton(
+                agentButton(
                     label: "Enter",
                     symbol: "return",
                     color: .accentColor,
@@ -137,7 +152,7 @@ struct ClaudeControlBarView: View {
                     session.sendRaw("\r")
                 }
 
-                claudeButton(
+                agentButton(
                     label: "Stop",
                     symbol: "stop.circle.fill",
                     color: .orange,
@@ -146,7 +161,7 @@ struct ClaudeControlBarView: View {
                     session.sendRaw("\u{03}")
                 }
 
-                claudeButton(
+                agentButton(
                     label: "Esc",
                     symbol: "escape",
                     color: .secondary,
@@ -160,7 +175,7 @@ struct ClaudeControlBarView: View {
         .padding(.vertical, 10)
     }
 
-    private var slashSection: some View {
+    private func slashSection(for agent: AgentProfile) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -178,7 +193,7 @@ struct ClaudeControlBarView: View {
             .buttonStyle(.plain)
 
             if slashMenuExpanded {
-                slashGrid
+                slashGrid(for: agent)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -186,22 +201,14 @@ struct ClaudeControlBarView: View {
         .padding(.vertical, 10)
     }
 
-    private var slashGrid: some View {
-        let commands: [(label: String, command: String, help: String)] = [
-            ("/clear",   "/clear\r",   "Clear the conversation history"),
-            ("/compact", "/compact\r", "Compact context to save tokens"),
-            ("/help",    "/help\r",    "Show Claude's built-in help"),
-            ("/init",    "/init\r",    "Create a CLAUDE.md for this project"),
-            ("/model",   "/model\r",   "Switch the model"),
-            ("/resume",  "/resume\r",  "Resume a previous conversation"),
-        ]
-        return LazyVGrid(
+    private func slashGrid(for agent: AgentProfile) -> some View {
+        LazyVGrid(
             columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
             spacing: 6
         ) {
-            ForEach(commands, id: \.label) { cmd in
+            ForEach(agent.slashCommands, id: \.label) { cmd in
                 Button {
-                    session.sendRaw(cmd.command)
+                    session.sendRaw(cmd.sendText)
                 } label: {
                     Text(cmd.label)
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -223,12 +230,12 @@ struct ClaudeControlBarView: View {
         }
     }
 
-    private var exitSection: some View {
+    private func exitSection(for agent: AgentProfile) -> some View {
         VStack(spacing: 4) {
             Button {
-                session.sendRaw("/exit\r")
+                session.sendRaw(agent.exitSendText)
             } label: {
-                Label("Exit Claude", systemImage: "power")
+                Label("Exit \(agent.displayName)", systemImage: "power")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -239,9 +246,9 @@ struct ClaudeControlBarView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help("Send /exit — end the Claude session")
+            .help("End the \(agent.displayName) session")
 
-            Text("or press Ctrl+C twice")
+            Text(agent.exitHint)
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
         }
@@ -255,7 +262,7 @@ struct ClaudeControlBarView: View {
             .foregroundStyle(.secondary)
     }
 
-    private func claudeButton(
+    private func agentButton(
         label: String,
         symbol: String,
         color: Color,
@@ -280,11 +287,24 @@ struct ClaudeControlBarView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+extension Color {
+    init?(hex: String) {
+        var value: UInt64 = 0
+        guard Scanner(string: String(hex.dropFirst())).scanHexInt64(&value) else { return nil }
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
     }
 }
 
 #Preview {
-    ClaudeControlBarView()
+    AgentControlBarView()
         .environment(SessionState())
         .frame(width: 220, height: 420)
 }

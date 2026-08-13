@@ -51,6 +51,7 @@ public sealed partial class BlockView : UserControl
                     RenderOutput();
                 break;
             case nameof(CommandBlock.ExitCode):
+            case nameof(CommandBlock.FinishedUnknown):
                 RenderStatus();
                 break;
             case nameof(CommandBlock.RenderKind):
@@ -126,9 +127,17 @@ public sealed partial class BlockView : UserControl
         RunningRing.IsActive = _block.IsRunning;
         RunningRing.Visibility = _block.IsRunning ? Visibility.Visible : Visibility.Collapsed;
         CheckIcon.Visibility = _block.Succeeded ? Visibility.Visible : Visibility.Collapsed;
-        ExitBadge.Visibility = _block.Failed ? Visibility.Visible : Visibility.Collapsed;
-        if (_block.Failed)
+        ExitBadge.Visibility = _block.Failed || _block.FinishedUnknown ? Visibility.Visible : Visibility.Collapsed;
+        if (_block.FinishedUnknown)
+        {
+            ExitBadgeText.Text = "ended";
+            ExitBadge.Background = new SolidColorBrush(Colors.Gray);
+            ToolTipService.SetToolTip(ExitBadge, "This command ended without reporting whether it succeeded");
+        }
+        else if (_block.Failed)
+        {
             ExitBadgeText.Text = $"Exit {_block.ExitCode}";
+        }
         HeaderRow.Background = _block.Failed
             ? new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 60, 60))
             : null;

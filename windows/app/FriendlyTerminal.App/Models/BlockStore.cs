@@ -16,7 +16,21 @@ public sealed class BlockStore
     public CommandBlock? LastFinishedBlock => Blocks.LastOrDefault(b => !b.IsRunning);
     public CommandBlock? LastUndoableBlock => Blocks.LastOrDefault(b => b.UndoPlan is not null && !b.IsUndone);
 
-    public void StartBlock(string command, string cwd) => Blocks.Add(new CommandBlock(command, cwd));
+    private const int MaxBlocks = 500;
+
+    public void StartBlock(string command, string cwd)
+    {
+        // A stray duplicate 133;C must never leave two running blocks and wedge the
+        // store; the abandoned block ends with its outcome marked unknown.
+        if (CurrentBlock is { } stale)
+        {
+            stale.Duration = DateTime.Now - stale.StartedAt;
+            stale.FinishedUnknown = true;
+        }
+        Blocks.Add(new CommandBlock(command, cwd));
+        while (Blocks.Count > MaxBlocks)
+            Blocks.RemoveAt(0);
+    }
 
     public void AppendOutput(string text)
     {

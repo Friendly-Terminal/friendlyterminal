@@ -187,6 +187,24 @@ export class TerminalManager {
         environment[key] = value;
       }
     }
+    const appDir = environment.APPDIR;
+    for (const key of ["APPIMAGE", "APPDIR", "OWD", "CHROME_DESKTOP", "ORIGINAL_XDG_CURRENT_DESKTOP"]) {
+      delete environment[key];
+    }
+    if (appDir !== undefined) {
+      for (const key of ["LD_LIBRARY_PATH", "LD_PRELOAD"]) {
+        const value = environment[key];
+        if (value === undefined) {
+          continue;
+        }
+        const kept = value.split(":").filter((entry) => entry.length > 0 && !entry.startsWith(appDir)).join(":");
+        if (kept.length > 0) {
+          environment[key] = kept;
+        } else {
+          delete environment[key];
+        }
+      }
+    }
     return {
       ...environment,
       ...overrides,

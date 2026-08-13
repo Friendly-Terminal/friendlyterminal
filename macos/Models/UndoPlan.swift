@@ -55,10 +55,13 @@ enum UndoPlanner {
             )
 
         case "mkdir":
-            guard let name = operands.last else { return nil }
-            let url = resolve(name)
-            return UndoPlan(label: "Undo: delete folder “\(url.lastPathComponent)”",
-                            actions: [.trash(path: url.path)])
+            guard allowPreState else { return nil }
+            let newDirs = operands.map(resolve).filter { !fm.fileExists(atPath: $0.path) }
+            guard !newDirs.isEmpty else { return nil } // only undo folders we create
+            let label = newDirs.count == 1
+                ? "Undo: delete folder “\(newDirs[0].lastPathComponent)”"
+                : "Undo: delete \(newDirs.count) new folders"
+            return UndoPlan(label: label, actions: newDirs.map { .trash(path: $0.path) })
 
         case "touch":
             guard allowPreState else { return nil }
@@ -70,7 +73,7 @@ enum UndoPlanner {
             return UndoPlan(label: label, actions: newFiles.map { .trash(path: $0.path) })
 
         case "cp":
-            guard allowPreState, operands.count >= 2,
+            guard allowPreState, operands.count == 2,
                   let src = operands.first, let dest = operands.last else { return nil }
             let destURL = resolve(dest)
             var destIsDir: ObjCBool = false
@@ -93,7 +96,9 @@ enum UndoPlanner {
             let srcURL = resolve(src)
             let destURL = resolve(dest)
             var destIsDir: ObjCBool = false
-            let movedInto = fm.fileExists(atPath: destURL.path, isDirectory: &destIsDir) && destIsDir.boolValue
+            let destExists = fm.fileExists(atPath: destURL.path, isDirectory: &destIsDir)
+            if destExists && !destIsDir.boolValue { return nil } // overwriting dest destroys it — can't undo
+            let movedInto = destExists && destIsDir.boolValue
             let finalDest = movedInto ? destURL.appendingPathComponent(srcURL.lastPathComponent) : destURL
             if movedInto && fm.fileExists(atPath: finalDest.path) { return nil } // would overwrite
             return UndoPlan(label: "Undo: move “\(srcURL.lastPathComponent)” back",
@@ -103,9 +108,15 @@ enum UndoPlanner {
             guard let sub = args.first else { return nil }
             switch sub {
             case "add":
-                let rest = args.dropFirst().joined(separator: " ")
-                guard !rest.isEmpty else { return nil }
-                return UndoPlan(label: "Undo: unstage", actions: [.shell("git restore --staged \(rest)")])
+                let addArgs = args.dropFirst()
+                guard !addArgs.isEmpty else { return nil }
+                if addArgs.contains(where: { $0.hasPrefix("-") }) {
+                    // -A/-u aren't valid restore pathspecs; all-flag forms staged everything
+                    guard addArgs.allSatisfy({ $0.hasPrefix("-") }) else { return nil }
+                    return UndoPlan(label: "Undo: unstage", actions: [.shell("git reset -q")])
+                }
+                return UndoPlan(label: "Undo: unstage",
+                                actions: [.shell("git restore --staged \(addArgs.joined(separator: " "))")])
             case "commit":
                 return UndoPlan(label: "Undo: undo last commit (keep the changes)",
                                 actions: [.shell("git reset --soft HEAD~1")])
@@ -124,22 +135,26 @@ enum UndoPlanner {
             return UndoPlan(label: "Undo: unset \(name)", actions: [.shell("unset \(name)")])
 
         case "zip":
-            guard let archive = operands.first else { return nil }
+            guard allowPreState, let archive = operands.first else { return nil }
             let url = resolve(archive)
+            guard !fm.fileExists(atPath: url.path) else { return nil } // would overwrite
             return UndoPlan(label: "Undo: delete “\(url.lastPathComponent)”",
                             actions: [.trash(path: url.path)])
 
         case "tar":
-            guard let flags = args.first, flags.hasPrefix("-"),
+            guard allowPreState, let flags = args.first, flags.hasPrefix("-"),
                   flags.contains("c"), flags.contains("f"),
                   let archive = args.dropFirst().first(where: { !$0.hasPrefix("-") }) else { return nil }
             let url = resolve(archive)
+            guard !fm.fileExists(atPath: url.path) else { return nil } // would overwrite
             return UndoPlan(label: "Undo: delete “\(url.lastPathComponent)”",
                             actions: [.trash(path: url.path)])
 
         case "curl":
+            guard allowPreState else { return nil }
             if let oIdx = args.firstIndex(of: "-o"), oIdx + 1 < args.count {
                 let url = resolve(args[oIdx + 1])
+                guard !fm.fileExists(atPath: url.path) else { return nil } // would overwrite
                 return UndoPlan(label: "Undo: delete “\(url.lastPathComponent)”",
                                 actions: [.trash(path: url.path)])
             }
@@ -147,6 +162,7 @@ enum UndoPlanner {
                 let name = (lastURL as NSString).lastPathComponent
                 guard !name.isEmpty else { return nil }
                 let url = resolve(name)
+                guard !fm.fileExists(atPath: url.path) else { return nil } // would overwrite
                 return UndoPlan(label: "Undo: delete “\(name)”", actions: [.trash(path: url.path)])
             }
             return nil
@@ -183,16 +199,37 @@ enum RmInterceptor {
         guard parts.first == "rm" else { return nil }
 
         let allowedFlags = Set("rfRdiv")
-        var targets: [URL] = []
+        var flags = Set<Character>()
+        var names: [String] = []
         for arg in parts.dropFirst() {
             if arg.hasPrefix("-") {
-                guard Set(arg.dropFirst()).isSubset(of: allowedFlags) else { return nil }
-                continue
+                let chars = Set(arg.dropFirst())
+                guard chars.isSubset(of: allowedFlags) else { return nil }
+                flags.formUnion(chars)
+            } else {
+                names.append(arg)
             }
-            let url = arg.hasPrefix("/")
-                ? URL(fileURLWithPath: arg)
-                : URL(fileURLWithPath: cwd, isDirectory: true).appendingPathComponent(arg)
-            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        }
+
+        let canDeleteDirs = !flags.isDisjoint(with: "rRd")
+        let cwdPath = URL(fileURLWithPath: cwd).standardizedFileURL.path
+        var targets: [URL] = []
+        for name in names {
+            if name == "." || name == ".." { return nil }
+            let url = name.hasPrefix("/")
+                ? URL(fileURLWithPath: name)
+                : URL(fileURLWithPath: cwd, isDirectory: true).appendingPathComponent(name)
+            let path = url.standardizedFileURL.path
+            // never intercept the cwd itself or any of its ancestors
+            if cwdPath == path || cwdPath.hasPrefix(path.hasSuffix("/") ? path : path + "/") { return nil }
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return nil }
+            if isDir.boolValue && !canDeleteDirs {
+                // fileExists traverses symlinks; plain rm deletes a link-to-dir fine
+                let type = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType
+                // plain `rm dir` would error, not delete — let the real rm run
+                if type != .typeSymbolicLink { return nil }
+            }
             targets.append(url)
         }
         return targets.isEmpty ? nil : targets

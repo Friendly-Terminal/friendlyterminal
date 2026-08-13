@@ -38,6 +38,15 @@ if (Get-Module -ListAvailable PSReadLine) {
         $line = $null
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        # Incomplete input (e.g. an unclosed quote) stays in the editor; emitting
+        # 133;C for it would open a command block that never gets its 133;D.
+        $tokens = $null
+        $parseErrors = $null
+        $null = [System.Management.Automation.Language.Parser]::ParseInput($line, [ref]$tokens, [ref]$parseErrors)
+        if ($parseErrors | Where-Object { $_.IncompleteInput }) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+            return
+        }
         if ($line) {
             $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($line))
             __ftOsc "633;E;$b64"
@@ -46,4 +55,6 @@ if (Get-Module -ListAvailable PSReadLine) {
         $global:__ftRan = $true
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
     }
+} else {
+    Write-Host "FriendlyTerminal: PSReadLine not found - command blocks disabled"
 }

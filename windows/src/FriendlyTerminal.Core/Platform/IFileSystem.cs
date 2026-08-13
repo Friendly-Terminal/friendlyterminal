@@ -10,6 +10,8 @@ public interface IFileSystem
     IReadOnlyList<string> ListDirectory(string path);
     /// <summary>Immediate children of <paramref name="path"/> with the metadata detectors need.</summary>
     IReadOnlyList<DirEntry> ListEntries(string path);
-    void MoveToTrash(string path);
-    void RestoreFromTrash(string trashedPath, string originalPath);
+    /// <summary>Returns false when the item could not be trashed and stays in place.</summary>
+    bool MoveToTrash(string path);
+    /// <summary>Returns false when the item could not be restored and remains trashed.</summary>
+    bool RestoreFromTrash(string trashedPath, string originalPath);
 }

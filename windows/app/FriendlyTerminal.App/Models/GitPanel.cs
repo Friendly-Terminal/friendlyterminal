@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using FriendlyTerminal.Core.Output;
 
 namespace FriendlyTerminal.App.Models;
 
@@ -36,6 +37,7 @@ public sealed class GitPanel : INotifyPropertyChanged
     private List<GitFileChange> _changes = new();
     private int _ahead;
     private bool _isBusy;
+    private string? _lastError;
     private int _seq;
 
     public GitPanel(string path) => _path = path;
@@ -45,6 +47,8 @@ public sealed class GitPanel : INotifyPropertyChanged
     public List<GitFileChange> Changes { get => _changes; private set => Set(ref _changes, value); }
     public int Ahead { get => _ahead; private set => Set(ref _ahead, value); }
     public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
+    /// <summary>Message for the last failed mutation, null when it succeeded.</summary>
+    public string? LastError { get => _lastError; private set => Set(ref _lastError, value); }
 
     public int StagedCount => _changes.Count(c => c.IsStaged);
 
@@ -67,13 +71,15 @@ public sealed class GitPanel : INotifyPropertyChanged
 
     private void Mutate(string? args)
     {
+        LastError = null;
         IsBusy = true;
         var seq = ++_seq;
         var context = SynchronizationContext.Current;
         Task.Run(() =>
         {
-            if (args is not null)
-                SessionState.RunGit(_path, args);
+            string? error = null;
+            if (args is not null && SessionState.RunGit(_path, args) is null)
+                error = $"git {args.Split(' ')[0]} failed";
             var snap = LoadSync(_path);
 
             void Apply()
@@ -84,6 +90,7 @@ public sealed class GitPanel : INotifyPropertyChanged
                 Branch = snap.Branch;
                 Changes = snap.Changes;
                 Ahead = snap.Ahead;
+                LastError = error;
                 IsBusy = false;
             }
             if (context is not null) context.Post(_ => Apply(), null);
@@ -120,7 +127,7 @@ public sealed class GitPanel : INotifyPropertyChanged
             var path = line[3..].Trim();
             var arrow = path.IndexOf(" -> ", StringComparison.Ordinal);
             if (arrow >= 0) path = path[(arrow + 4)..];
-            path = path.Trim('"');
+            path = GitPath.Unquote(path);
             if (path.Length == 0) continue;
             result.Add(new GitFileChange(path, line[0], line[1]));
         }

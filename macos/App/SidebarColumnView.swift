@@ -12,8 +12,8 @@ struct SidebarColumnView: View {
             Divider()
 
             Group {
-                if session.isTUIActive && session.isClaudeRunning {
-                    ClaudeControlBarView()
+                if session.isTUIActive && session.isAgentRunning {
+                    AgentControlBarView()
                 } else if session.isTUIActive {
                     InteractiveHintView()
                 } else {
@@ -28,6 +28,6 @@ struct SidebarColumnView: View {
             .transition(.opacity)
         }
         .animation(.easeInOut(duration: 0.2), value: session.isTUIActive)
-        .animation(.easeInOut(duration: 0.2), value: session.isClaudeRunning)
+        .animation(.easeInOut(duration: 0.2), value: session.isAgentRunning)
     }
 }

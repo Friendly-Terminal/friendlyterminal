@@ -1,9 +1,13 @@
 import SwiftUI
 
-struct ClaudeDoctorView: View {
+struct AgentDoctorView: View {
     @Environment(SessionState.self) private var session
     @Environment(\.dismiss) private var dismiss
-    private let checker = ClaudeInstallChecker.shared
+    var fixedProfile: AgentProfile? = nil
+
+    private var profile: AgentProfile { fixedProfile ?? session.activeAgent ?? AgentRegistry.claude }
+    private var checker: AgentInstallChecker { .shared(for: profile) }
+    private var isClaude: Bool { profile.id == AgentRegistry.claude.id }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,9 +16,9 @@ struct ClaudeDoctorView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Claude Code Setup")
+                    Text("\(profile.displayName) Setup")
                         .font(.headline)
-                    Text("Check your Claude Code installation")
+                    Text("Check your \(profile.displayName) installation")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -30,7 +34,7 @@ struct ClaudeDoctorView: View {
                 VStack(spacing: 0) {
                     nodeRow
                     Divider().padding(.leading, 44)
-                    claudeRow
+                    installRow
                     Divider().padding(.leading, 44)
                     authRow
                     Divider().padding(.leading, 44)
@@ -40,7 +44,7 @@ struct ClaudeDoctorView: View {
 
             Divider()
 
-            if !checker.claudeStatus.isInstalled {
+            if isClaude && !checker.installStatus.isInstalled {
                 installInstructionsSection
                 Divider()
             }
@@ -54,7 +58,7 @@ struct ClaudeDoctorView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                if case .checking = checker.claudeStatus {
+                if case .checking = checker.installStatus {
                     ProgressView()
                         .scaleEffect(0.65)
                         .padding(.leading, 4)
@@ -73,42 +77,65 @@ struct ClaudeDoctorView: View {
             icon: "shippingbox.fill",
             title: "Node.js",
             status: nodeStatusText,
-            statusColor: checker.nodeStatus.isInstalled ? .green : .red,
-            detail: checker.nodeStatus.isInstalled
-                ? "Claude Code is built on Node.js. All good."
-                : "Node.js is required by Claude Code.",
-            fixLabel: checker.nodeStatus.isInstalled ? nil : "Install Node.js",
-            fixAction: checker.nodeStatus.isInstalled ? nil : {
+            statusColor: nodeStatusColor,
+            detail: nodeDetail,
+            fixLabel: nodeNeedsInstall ? "Install Node.js" : nil,
+            fixAction: nodeNeedsInstall ? {
                 session.executeCommand("open https://nodejs.org")
-            }
+            } : nil
         )
     }
 
     private var nodeStatusText: String {
         switch checker.nodeStatus {
         case .unknown:          return "Checking…"
+        case .notApplicable:    return "Not required"
         case .installed(let v): return v
         case .notInstalled:     return "Not installed"
         }
     }
 
-    private var claudeRow: some View {
+    private var nodeStatusColor: Color {
+        switch checker.nodeStatus {
+        case .installed:     return .green
+        case .notApplicable: return .secondary
+        default:             return .red
+        }
+    }
+
+    private var nodeDetail: String {
+        switch checker.nodeStatus {
+        case .notApplicable:
+            return "\(profile.displayName) does not require Node.js."
+        case .installed:
+            return "\(profile.displayName) is built on Node.js. All good."
+        default:
+            return "Node.js is required by \(profile.displayName)."
+        }
+    }
+
+    private var nodeNeedsInstall: Bool {
+        if case .notInstalled = checker.nodeStatus { return true }
+        return false
+    }
+
+    private var installRow: some View {
         DoctorRow(
-            icon: "sparkles",
-            title: "Claude Code CLI",
-            status: claudeStatusText,
-            statusColor: checker.claudeStatus.isInstalled ? .green : .red,
-            detail: claudeDetail,
-            fixLabel: checker.claudeStatus.isInstalled ? nil : "Install Claude Code",
-            fixAction: checker.claudeStatus.isInstalled ? nil : {
+            icon: profile.symbol,
+            title: "\(profile.displayName) CLI",
+            status: installStatusText,
+            statusColor: checker.installStatus.isInstalled ? .green : .red,
+            detail: installDetail,
+            fixLabel: (isClaude && !checker.installStatus.isInstalled) ? "Install Claude Code" : nil,
+            fixAction: (isClaude && !checker.installStatus.isInstalled) ? {
                 session.executeCommand("npm install -g @anthropic-ai/claude-code")
                 dismiss()
-            }
+            } : nil
         )
     }
 
-    private var claudeStatusText: String {
-        switch checker.claudeStatus {
+    private var installStatusText: String {
+        switch checker.installStatus {
         case .unknown:                    return "Checking…"
         case .checking:                   return "Checking…"
         case .installed(_, let version):  return version ?? "Installed"
@@ -116,12 +143,14 @@ struct ClaudeDoctorView: View {
         }
     }
 
-    private var claudeDetail: String {
-        switch checker.claudeStatus {
+    private var installDetail: String {
+        switch checker.installStatus {
         case .installed(let path, _):
             return "Found at \(path)"
         case .notInstalled:
-            return "Run the install command below, then re-check."
+            return isClaude
+                ? "Run the install command below, then re-check."
+                : "Not found on your PATH. Install it, then re-check."
         default:
             return ""
         }
@@ -134,9 +163,10 @@ struct ClaudeDoctorView: View {
             status: authStatusText,
             statusColor: authStatusColor,
             detail: authDetail,
-            fixLabel: authNeedsSetup ? "Run claude login" : nil,
+            fixLabel: authNeedsSetup ? "Open \(profile.displayName) and run /login" : nil,
             fixAction: authNeedsSetup ? {
-                session.executeCommand("claude login")
+                let path = checker.installStatus.path ?? profile.binaryNames.first ?? profile.id
+                session.executeCommand(AgentRegistry.shellQuote(path))
                 dismiss()
             } : nil
         )
@@ -144,7 +174,7 @@ struct ClaudeDoctorView: View {
 
     private var authStatusText: String {
         switch checker.authStatus {
-        case .unknown:          return "Probably configured"
+        case .unknown:          return "Unknown"
         case .authenticated:    return "Configured"
         case .notAuthenticated: return "Not set up"
         }
@@ -161,16 +191,18 @@ struct ClaudeDoctorView: View {
     private var authDetail: String {
         switch checker.authStatus {
         case .unknown:
-            return "Could not verify. Try running claude in the terminal to check."
+            return "Could not verify. Try running \(profile.binaryNames.first ?? profile.id) in the terminal to check."
         case .authenticated:
             return "Credentials found — you're ready to go."
         case .notAuthenticated:
-            return "Run 'claude login' to connect your Anthropic account."
+            return isClaude
+                ? "Start Claude Code and run /login inside the session to connect your Anthropic account."
+                : "No credentials found for \(profile.displayName)."
         }
     }
 
     private var authNeedsSetup: Bool {
-        checker.authStatus == .notAuthenticated
+        isClaude && checker.authStatus == .notAuthenticated
     }
 
     private var mcpRow: some View {
@@ -189,14 +221,16 @@ struct ClaudeDoctorView: View {
     private var mcpInfo: (String, String, Color) {
         switch checker.mcpStatus {
         case .unknown:
-            return ("Checking…", "", .secondary)
+            return ("Unknown",
+                    "MCP configuration for \(profile.displayName) can't be read from here.",
+                    .secondary)
         case .none:
             return ("None configured",
-                    "Optional — add MCP servers to give Claude access to databases, GitHub, and more.",
+                    "Optional — add MCP servers to give \(profile.displayName) access to databases, GitHub, and more.",
                     .secondary)
         case .configured(let count):
             return ("\(count) server\(count == 1 ? "" : "s")",
-                    "MCP servers extend Claude with extra tools.",
+                    "MCP servers extend \(profile.displayName) with extra tools.",
                     .green)
         }
     }
@@ -320,6 +354,6 @@ private struct DoctorRow: View {
 }
 
 #Preview {
-    ClaudeDoctorView()
+    AgentDoctorView()
         .environment(SessionState())
 }

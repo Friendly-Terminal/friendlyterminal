@@ -12,6 +12,8 @@ struct NLCommandBarView: View {
     @State private var dangerousCommandPending: String? = nil
     @State private var isDroppingFile: Bool = false
     @State private var completions: [String] = []
+    @State private var historyIndex: Int? = nil
+    @State private var historyDraft: String = ""
 
     enum InputMode: String, CaseIterable {
         case run = "Run"
@@ -157,9 +159,7 @@ struct NLCommandBarView: View {
 
             ZStack(alignment: .leading) {
                 if inputText.isEmpty && textFieldWidth > 120 {
-                    Text(session.isClaudeRunning
-                         ? "Message Claude, or type 1 / 2 / 3 to pick an option…"
-                         : (mode == .run ? "Run a command…" : "Ask anything — I'll find the right command…"))
+                    Text(placeholderText)
                         .font(.system(size: 14, design: (mode == .run && !session.isClaudeRunning) ? .monospaced : .default))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -170,9 +170,19 @@ struct NLCommandBarView: View {
                     .font(.system(size: 14, design: mode == .run ? .monospaced : .default))
                     .textFieldStyle(.plain)
                     .focused($isFocused)
+                    .accessibilityLabel(placeholderText)
+                    .accessibilityIdentifier("commandBarField")
                     .lineLimit(1...5)
                     .onSubmit { submit() }
                     .onKeyPress(.tab) { handleTab() }
+                    .onKeyPress(.upArrow) { recallHistory(-1) }
+                    .onKeyPress(.downArrow) { recallHistory(1) }
+                    .onChange(of: inputText) { _, newValue in
+                        if let idx = historyIndex,
+                           !(idx < commandHistory.count && newValue == commandHistory[idx]) {
+                            historyIndex = nil
+                        }
+                    }
             }
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
@@ -227,6 +237,7 @@ struct NLCommandBarView: View {
         }
         .buttonStyle(.plain)
         .help(mode == .run ? "Run: execute command directly" : "Ask AI: translate plain English to a command")
+        .accessibilityLabel(mode == .run ? "Run: execute command directly" : "Ask AI: translate plain English to a command")
         .coachmarkTarget(Coachmark.modeToggle)
     }
 
@@ -249,8 +260,50 @@ struct NLCommandBarView: View {
             }
             .buttonStyle(.plain)
             .disabled(inputText.isEmpty)
+            .accessibilityLabel("Send")
             .animation(.easeInOut(duration: 0.15), value: inputText.isEmpty)
         }
+    }
+
+    private var placeholderText: String {
+        if let agent = session.activeAgent {
+            return agent.supportsNumberedOptions
+                ? "Message \(agent.displayName), or type 1 / 2 / 3 to pick an option…"
+                : "Message \(agent.displayName)…"
+        }
+        return mode == .run ? "Run a command…" : "Ask anything — I'll find the right command…"
+    }
+
+    // MARK: - Command history recall
+
+    private var commandHistory: [String] {
+        session.blockStore.visibleBlocks.map(\.command).filter { !$0.isEmpty }
+    }
+
+    private func recallHistory(_ delta: Int) -> KeyPress.Result {
+        guard mode == .run, !session.isClaudeRunning, !session.isTUIActive,
+              session.blockStore.currentBlock == nil else { return .ignored }
+        let history = commandHistory
+        guard !history.isEmpty else { return .ignored }
+
+        let index: Int
+        if let current = historyIndex {
+            index = current + delta
+        } else {
+            guard delta < 0 else { return .ignored }
+            historyDraft = inputText
+            index = history.count - 1
+        }
+
+        if index >= history.count {
+            historyIndex = nil
+            inputText = historyDraft
+            return .handled
+        }
+        let clamped = max(0, index)
+        historyIndex = clamped
+        inputText = history[clamped]
+        return .handled
     }
 
     private func isDangerousCommand(_ cmd: String) -> Bool {
@@ -377,6 +430,13 @@ struct NLCommandBarView: View {
 
         if session.isClaudeRunning {
             session.sendRaw(text + "\r")
+            inputText = ""
+            return
+        }
+
+        // A foreground program is reading stdin — this text is input, not a command.
+        if session.isTUIActive || session.blockStore.currentBlock != nil {
+            session.sendRaw(text + "\n")
             inputText = ""
             return
         }

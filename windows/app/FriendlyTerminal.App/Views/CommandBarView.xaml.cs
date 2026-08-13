@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Text.RegularExpressions;
 using FriendlyTerminal.Core.Help;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,7 +12,7 @@ namespace FriendlyTerminal.App.Views;
 
 /// <summary>
 /// The friendly command line under the block list. Enter runs the command via
-/// the session (so undo/interception apply); while Claude Code is running it
+/// the session (so undo/interception apply); while an AI agent is running it
 /// becomes the chat input instead. Tab completes paths like the macOS bar.
 /// </summary>
 public sealed partial class CommandBarView : UserControl
@@ -62,23 +63,26 @@ public sealed partial class CommandBarView : UserControl
 
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SessionState.IsTuiActive) or nameof(SessionState.IsClaudeRunning))
+        if (e.PropertyName is nameof(SessionState.IsTuiActive) or nameof(SessionState.IsAgentRunning))
             UpdateMode();
     }
 
     private void UpdateMode()
     {
         if (_session is null) return;
-        var claude = _session.IsClaudeRunning;
-        var blocked = _session.IsTuiActive && !claude;
+        var agent = _session.ActiveAgent;
+        var running = agent is not null;
+        var blocked = _session.IsTuiActive && !running;
 
-        Input.PlaceholderText = claude
-            ? "Message Claude, or type 1 / 2 / 3 to pick an option…"
-            : "Run a command…";
+        Input.PlaceholderText = agent is null
+            ? "Run a command…"
+            : agent.SupportsNumberedOptions
+                ? $"Message {agent.DisplayName}, or type 1 / 2 / 3 to pick an option…"
+                : $"Message {agent.DisplayName}…";
         Input.IsEnabled = !blocked;
         SendButton.IsEnabled = !blocked;
         Opacity = blocked ? 0.4 : 1.0;
-        if (claude) FocusInput();
+        if (running) FocusInput();
     }
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
@@ -88,7 +92,7 @@ public sealed partial class CommandBarView : UserControl
             e.Handled = true;
             Submit();
         }
-        else if (e.Key == VirtualKey.Tab && _session is not null && !_session.IsClaudeRunning)
+        else if (e.Key == VirtualKey.Tab && _session is not null && !_session.IsAgentRunning)
         {
             e.Handled = true;
             HandleTabCompletion();
@@ -108,7 +112,7 @@ public sealed partial class CommandBarView : UserControl
         var text = Input.Text.Trim();
         if (text.Length == 0) return;
 
-        if (_session.IsClaudeRunning)
+        if (_session.IsAgentRunning)
         {
             _session.SendRaw(text + "\r");
             Input.Text = "";
@@ -143,9 +147,9 @@ public sealed partial class CommandBarView : UserControl
     /// </summary>
     private void OnPaste(object sender, TextControlPasteEventArgs e)
     {
-        // While Claude (or another TUI) owns the input this is chat text,
+        // While an agent (or another TUI) owns the input this is chat text,
         // not a command - leave the paste alone.
-        if (_session is null || _session.IsClaudeRunning || _session.IsTuiActive) return;
+        if (_session is null || _session.IsAgentRunning || _session.IsTuiActive) return;
 
         var view = Clipboard.GetContent();
         if (!view.Contains(StandardDataFormats.Text)) return;
@@ -239,12 +243,17 @@ public sealed partial class CommandBarView : UserControl
         {
             var path = item.Path;
             if (string.IsNullOrEmpty(path)) continue;
-            var safe = path.Contains(' ') ? $"'{path.Replace("'", "''")}'" : path;
+            var safe = QuotePath(path);
             Input.Text = Input.Text.Length == 0 ? safe : Input.Text + " " + safe;
         }
         Input.SelectionStart = Input.Text.Length;
         FocusInput();
     }
+
+    private static readonly Regex SafePathChars = new(@"^[A-Za-z0-9_./:\\-]+$");
+
+    private static string QuotePath(string path)
+        => SafePathChars.IsMatch(path) ? path : $"'{path.Replace("'", "''")}'";
 
     // MARK: - Tab path completion
 
@@ -259,7 +268,16 @@ public sealed partial class CommandBarView : UserControl
         if (_session is null) return;
         var text = Input.Text;
 
-        var lastSpace = text.LastIndexOf(' ');
+        // Quote-aware: a space inside 'C:\My Dir\...' doesn't start a new token.
+        var lastSpace = -1;
+        var quote = '\0';
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (quote != '\0') { if (c == quote) quote = '\0'; }
+            else if ((c is '\'' or '"') && (i == 0 || text[i - 1] == ' ')) quote = c;
+            else if (c == ' ') lastSpace = i;
+        }
         if (lastSpace < 0) return; // only complete an argument
 
         var head = text[..(lastSpace + 1)];
@@ -268,6 +286,7 @@ public sealed partial class CommandBarView : UserControl
         var dirsOnly = firstWord is "cd" or "Set-Location" or "sl";
 
         if (token.StartsWith('\'') || token.StartsWith('"')) token = token[1..];
+        if (token.Length > 0 && (token.EndsWith('\'') || token.EndsWith('"'))) token = token[..^1];
 
         string dirPart, partial;
         var slash = token.LastIndexOfAny(new[] { '\\', '/' });
@@ -304,7 +323,7 @@ public sealed partial class CommandBarView : UserControl
             CompletionHints.Visibility = Visibility.Visible;
         }
 
-        var rendered = newToken.Contains(' ') ? $"'{newToken.Replace("'", "''")}'" : newToken;
+        var rendered = QuotePath(newToken);
         Input.Text = head + rendered;
         Input.SelectionStart = Input.Text.Length;
     }
