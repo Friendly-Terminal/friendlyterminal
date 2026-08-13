@@ -7,12 +7,34 @@ context, and safety expected from a modern desktop app.
 Each platform uses a mature platform-specific terminal stack and follows the
 shared behavior contract in [`docs/behavior-spec`](docs/behavior-spec/README.md).
 
+## Download
+
+<p align="center">
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download for macOS (.dmg)" src="https://img.shields.io/badge/macOS-Download%20.dmg-111111?style=for-the-badge&logo=apple&logoColor=white"></a>&nbsp;
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download for Windows (installer)" src="https://img.shields.io/badge/Windows-Installer%20.exe-0078D4?style=for-the-badge"></a>&nbsp;
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download for Windows (portable)" src="https://img.shields.io/badge/Windows-Portable%20.zip-005A9E?style=for-the-badge"></a>
+  <br>
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download .deb for Debian and Ubuntu" src="https://img.shields.io/badge/Debian%20%2F%20Ubuntu-.deb-A81D33?style=for-the-badge&logo=debian&logoColor=white"></a>&nbsp;
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download .rpm for Fedora and openSUSE" src="https://img.shields.io/badge/Fedora%20%2F%20openSUSE-.rpm-51A2DA?style=for-the-badge&logo=fedora&logoColor=white"></a>&nbsp;
+  <a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">
+    <img alt="Download AppImage for any Linux" src="https://img.shields.io/badge/Any%20Linux-.AppImage-333333?style=for-the-badge&logo=linux&logoColor=white"></a>
+</p>
+
+<p align="center">Every button opens the
+<a href="https://github.com/Friendly-Terminal/friendlyterminal/releases/latest">latest release</a>,
+where the file for your platform is attached. Setup steps are below.</p>
+
 ## Install
 
 ### macOS
 
 1. Download `FriendlyTerminal.dmg` from the
-   [latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest).
+   [latest release](https://github.com/Friendly-Terminal/friendlyterminal/releases/latest).
 2. Open it and drag FriendlyTerminal into Applications.
 3. On first launch, right-click the app, choose **Open**, then confirm **Open**.
 
@@ -22,7 +44,7 @@ a paid Apple Developer account.
 ### Linux
 
 Download the package for your distribution from the
-[latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest):
+[latest release](https://github.com/Friendly-Terminal/friendlyterminal/releases/latest):
 
 - **Ubuntu, Debian, Linux Mint, Pop!_OS:** open the `.deb` in your software
   installer.
@@ -35,7 +57,7 @@ The packaged app does not require Node.js or development tools.
 ### Windows
 
 1. Download `FriendlyTerminal-Setup-<version>-x64.exe` from the
-   [latest release](https://github.com/aaditaggarwal26/friendlyterminal/releases/latest).
+   [latest release](https://github.com/Friendly-Terminal/friendlyterminal/releases/latest).
 2. Run it. Because the installer is unsigned, SmartScreen may show **Windows
    protected your PC**; click **More info**, then **Run anyway**.
 3. It installs per-user with no administrator prompt and adds a Start Menu
@@ -92,7 +114,7 @@ Linux parity work.
 Clone the repository first:
 
 ```sh
-git clone https://github.com/aaditaggarwal26/friendlyterminal.git
+git clone https://github.com/Friendly-Terminal/friendlyterminal.git
 cd friendlyterminal
 ```
 
