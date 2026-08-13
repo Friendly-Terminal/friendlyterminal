@@ -285,7 +285,11 @@ public sealed class SessionState : INotifyPropertyChanged
             switch (action)
             {
                 case UndoAction.Shell shell:
+                    // ExecuteCommand refuses (and reports) while a command is in
+                    // flight, so the undo didn't happen.
+                    var busy = Blocks.CurrentBlock is not null;
                     ExecuteCommand(shell.Command);
+                    if (busy) failed.Add(shell.Command);
                     break;
                 case UndoAction.Trash trash:
                     if (!fs.MoveToTrash(trash.Path))
@@ -315,6 +319,7 @@ public sealed class SessionState : INotifyPropertyChanged
     private bool InterceptDeletion(string command)
     {
         if (_rmInterceptor.SafeTargets(command, _currentDirectory) is not { } targets) return false;
+        if (targets.Any(WindowsFileSystem.DeclinesAppTrash)) return false;
 
         var fs = WindowsFileSystem.Instance;
         var restores = new List<UndoAction>();

@@ -92,9 +92,10 @@ public sealed class WindowsFileSystem : IFileSystem
     /// </summary>
     public string? MoveToAppTrash(string path)
     {
+        if (DeclinesAppTrash(path)) return null;
         try
         {
-            // Directory.Move can't cross volumes, so other drives get their own trash.
+            // Directory.Move can't cross volumes, so other local drives get their own trash.
             var trashRoot = AppTrashDirectory;
             var volume = Path.GetPathRoot(Path.GetFullPath(path));
             if (!string.IsNullOrEmpty(volume) &&
@@ -123,6 +124,17 @@ public sealed class WindowsFileSystem : IFileSystem
             return null;
         }
     }
+
+    /// <summary>
+    /// Items the app trash can't hold safely: UNC paths (a share-local trash would
+    /// be invisible to the trash panel, Empty and the purge) and names that collide
+    /// with the sidecar, which would be overwritten. Callers must decline
+    /// interception for these and let the real command run.
+    /// </summary>
+    public static bool DeclinesAppTrash(string path) =>
+        path.StartsWith(@"\\") || path.StartsWith("//") ||
+        string.Equals(Path.GetFileName(path.TrimEnd('\\', '/')), MetaFileName,
+            StringComparison.OrdinalIgnoreCase);
 
     // MARK: - Trash panel helpers
 

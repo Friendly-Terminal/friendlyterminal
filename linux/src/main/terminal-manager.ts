@@ -188,6 +188,9 @@ export class TerminalManager {
       }
     }
     const appDir = environment.APPDIR;
+    if (environment.ORIGINAL_XDG_CURRENT_DESKTOP !== undefined) {
+      environment.XDG_CURRENT_DESKTOP = environment.ORIGINAL_XDG_CURRENT_DESKTOP;
+    }
     for (const key of ["APPIMAGE", "APPDIR", "OWD", "CHROME_DESKTOP", "ORIGINAL_XDG_CURRENT_DESKTOP"]) {
       delete environment[key];
     }
@@ -197,7 +200,10 @@ export class TerminalManager {
         if (value === undefined) {
           continue;
         }
-        const kept = value.split(":").filter((entry) => entry.length > 0 && !entry.startsWith(appDir)).join(":");
+        const kept = value
+          .split(":")
+          .filter((entry) => entry.length > 0 && entry !== appDir && !entry.startsWith(`${appDir}/`))
+          .join(":");
         if (kept.length > 0) {
           environment[key] = kept;
         } else {

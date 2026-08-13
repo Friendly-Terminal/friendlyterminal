@@ -52,10 +52,9 @@ struct ShellIntegrationParser {
             let path = url.path
             return path.isEmpty ? nil : path
         }
-        if raw.hasPrefix("/") {
-            return raw.removingPercentEncoding
-        }
-        return nil
+        // Foreign shell integrations emit unencoded paths — only file:// URLs are
+        // percent-encoded, so a raw path passes through as-is.
+        return raw.hasPrefix("/") ? raw : nil
     }
 
     /// Stateful scanner that consumes the raw PTY byte stream in arbitrarily sized

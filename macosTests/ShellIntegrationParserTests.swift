@@ -10,6 +10,17 @@ final class ShellIntegrationParserTests: XCTestCase {
         }.joined()
     }
 
+    func testOSC7FileURLIsPercentDecoded() {
+        XCTAssertEqual(ShellIntegrationParser.decodeFileURL("file:///tmp/a%20b"), "/tmp/a b")
+        XCTAssertEqual(ShellIntegrationParser.decodeFileURL("file://localhost/tmp/x"), "/tmp/x")
+    }
+
+    func testOSC7RawPathIsNotPercentDecoded() {
+        XCTAssertEqual(ShellIntegrationParser.decodeFileURL("/tmp/a%20b"), "/tmp/a%20b")
+        XCTAssertEqual(ShellIntegrationParser.decodeFileURL("/tmp/100%"), "/tmp/100%")
+        XCTAssertNil(ShellIntegrationParser.decodeFileURL("relative/path"))
+    }
+
     func testCRLFWithONLCRDoublingKeepsLineContent() {
         let stream = ShellIntegrationParser.Stream()
         let events = stream.feed(ArraySlice(Array("HTTP/1.1 200 OK\r\r\nContent-Type: text\r\r\n".utf8)))

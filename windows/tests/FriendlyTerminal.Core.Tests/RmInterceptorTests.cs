@@ -130,6 +130,34 @@ public class RmInterceptorTests
     }
 
     [Fact]
+    public void Accepts_empty_directory_with_dash_d()
+    {
+        var fs = new FakeFileSystem().AddDir("/Users/test/project/empty");
+        var targets = new RmInterceptor(fs).SafeTargets("rm -d empty", Cwd);
+        Assert.Equal(new[] { "/Users/test/project/empty" }, targets);
+    }
+
+    [Fact]
+    public void Declines_non_empty_directory_with_dash_d_only()
+    {
+        var fs = new FakeFileSystem()
+            .AddDir("/Users/test/project/build")
+            .AddFile("/Users/test/project/build/a.txt");
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm -d build", Cwd));
+        Assert.Null(new RmInterceptor(fs).SafeTargets("rm -fd build", Cwd));
+    }
+
+    [Fact]
+    public void Accepts_non_empty_directory_when_recursive_flag_is_present()
+    {
+        var fs = new FakeFileSystem()
+            .AddDir("/Users/test/project/build")
+            .AddFile("/Users/test/project/build/a.txt");
+        var targets = new RmInterceptor(fs).SafeTargets("rm -rd build", Cwd);
+        Assert.Equal(new[] { "/Users/test/project/build" }, targets);
+    }
+
+    [Fact]
     public void Accepts_file_target_without_flags()
     {
         var fs = new FakeFileSystem().AddFile("/Users/test/project/a.txt");

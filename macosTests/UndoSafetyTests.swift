@@ -68,6 +68,27 @@ final class UndoSafetyTests: XCTestCase {
         XCTAssertNil(UndoPlanner.plan(command: "mkdir -p exists", cwd: dir.path))
     }
 
+    func testRejectsCwdReachedThroughASymlink() throws {
+        let real = URL(fileURLWithPath: "/private/tmp")
+            .appendingPathComponent("UndoSafetySymlink\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: real) }
+        let viaSymlink = "/tmp/\(real.lastPathComponent)"
+
+        XCTAssertNil(RmInterceptor.safeTargets(command: "rm -rf \(real.path)", cwd: viaSymlink))
+        XCTAssertNil(RmInterceptor.safeTargets(command: "rm -rf \(viaSymlink)", cwd: real.path))
+    }
+
+    func testMkdirModeArgumentIsNotATarget() throws {
+        let plan = UndoPlanner.plan(command: "mkdir -m 755 build", cwd: dir.path)
+        XCTAssertEqual(plan?.actions.count, 1)
+        if case .trash(let path)? = plan?.actions.first {
+            XCTAssertEqual(path, dir.appendingPathComponent("build").path)
+        } else {
+            XCTFail("expected a trash action for the new folder")
+        }
+    }
+
     func testMkdirPlansOnlyNewDirs() throws {
         _ = try makeDir("exists")
         let plan = UndoPlanner.plan(command: "mkdir -p exists fresh", cwd: dir.path)

@@ -56,7 +56,17 @@ enum UndoPlanner {
 
         case "mkdir":
             guard allowPreState else { return nil }
-            let newDirs = operands.map(resolve).filter { !fm.fileExists(atPath: $0.path) }
+            // -m takes a mode argument; treating it as an operand would plan a
+            // trash of a folder named e.g. "755".
+            var names: [String] = []
+            var skipNext = false
+            for arg in args {
+                if skipNext { skipNext = false; continue }
+                if arg == "-m" { skipNext = true; continue }
+                if arg.hasPrefix("-") { continue }
+                names.append(arg)
+            }
+            let newDirs = names.map(resolve).filter { !fm.fileExists(atPath: $0.path) }
             guard !newDirs.isEmpty else { return nil } // only undo folders we create
             let label = newDirs.count == 1
                 ? "Undo: delete folder “\(newDirs[0].lastPathComponent)”"
@@ -212,14 +222,15 @@ enum RmInterceptor {
         }
 
         let canDeleteDirs = !flags.isDisjoint(with: "rRd")
-        let cwdPath = URL(fileURLWithPath: cwd).standardizedFileURL.path
+        // Resolve both sides: /tmp/x and /private/tmp/x are the same directory.
+        let cwdPath = URL(fileURLWithPath: cwd).standardizedFileURL.resolvingSymlinksInPath().path
         var targets: [URL] = []
         for name in names {
             if name == "." || name == ".." { return nil }
             let url = name.hasPrefix("/")
                 ? URL(fileURLWithPath: name)
                 : URL(fileURLWithPath: cwd, isDirectory: true).appendingPathComponent(name)
-            let path = url.standardizedFileURL.path
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
             // never intercept the cwd itself or any of its ancestors
             if cwdPath == path || cwdPath.hasPrefix(path.hasSuffix("/") ? path : path + "/") { return nil }
             var isDir: ObjCBool = false

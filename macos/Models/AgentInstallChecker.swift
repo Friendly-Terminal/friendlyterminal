@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @Observable
 @MainActor
@@ -106,26 +107,56 @@ final class AgentInstallChecker {
         mcpStatus = mcp
     }
 
-    // Reads stdout to EOF before waiting so a full pipe can't deadlock;
-    // terminates the process after `timeout`.
-    nonisolated private static func runShell(
+    // Reads stdout to EOF before waiting so a full pipe can't deadlock. The probe
+    // gets its own process group so the timeout can SIGKILL the whole tree —
+    // signalling only the shell leaves grandchildren holding the pipe's write end
+    // and the read never returns.
+    nonisolated static func runShell(
         _ script: String, timeout: TimeInterval = 15
     ) -> (status: Int32, output: String)? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-l", "-c", script]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return nil }
-        let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
+        var fds: [Int32] = [-1, -1]
+        guard pipe(&fds) == 0 else { return nil }
+        let (readFD, writeFD) = (fds[0], fds[1])
+
+        var attr: posix_spawnattr_t?
+        posix_spawnattr_init(&attr)
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setpgroup(&attr, 0)
+
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        posix_spawn_file_actions_adddup2(&actions, writeFD, STDOUT_FILENO)
+        posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0)
+        posix_spawn_file_actions_addclose(&actions, readFD)
+        posix_spawn_file_actions_addclose(&actions, writeFD)
+
+        let args: [String] = ["/bin/zsh", "-l", "-c", script]
+        let argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) } + [nil]
+        var spawned: pid_t = 0
+        let rc = posix_spawn(&spawned, "/bin/zsh", &actions, &attr, argv, environ)
+        argv.forEach { free($0) }
+        posix_spawn_file_actions_destroy(&actions)
+        posix_spawnattr_destroy(&attr)
+        close(writeFD)
+        guard rc == 0 else { close(readFD); return nil }
+        let pid = spawned
+
+        let reaped = OSAllocatedUnfairLock(initialState: false)
+        let killer = DispatchWorkItem {
+            reaped.withLock { if !$0 { kill(-pid, SIGKILL) } }
+        }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: killer)
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
+
+        let data = FileHandle(fileDescriptor: readFD, closeOnDealloc: true).readDataToEndOfFile()
+        var raw: Int32 = 0
+        while waitpid(pid, &raw, 0) < 0 && errno == EINTR {}
+        reaped.withLock { $0 = true }
         killer.cancel()
+
         let output = String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return (p.terminationStatus, output)
+        let status = (raw & 0x7F) == 0 ? (raw >> 8) & 0xFF : -1
+        return (status, output)
     }
 
     nonisolated private static func probeInstall(_ profile: AgentProfile) async -> InstallStatus {

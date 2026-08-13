@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window
     private readonly List<TerminalPaneView> _panes = new();
     private TerminalPaneView? _focused;
     private bool _sidebarVisible = true;
+    private bool _trashDialogOpen;
 
     public MainWindow()
     {
@@ -137,14 +138,24 @@ public sealed partial class MainWindow : Window
 
     private async void OnOpenTrash(object sender, RoutedEventArgs e)
     {
-        var dialog = new ContentDialog
+        // A second ContentDialog while one is open throws and takes the app down.
+        if (_trashDialogOpen) return;
+        _trashDialogOpen = true;
+        try
         {
-            Title = "Trash",
-            Content = new TrashPanelView(),
-            CloseButtonText = "Done",
-            XamlRoot = RootGrid.XamlRoot,
-        };
-        await dialog.ShowAsync();
+            var dialog = new ContentDialog
+            {
+                Title = "Trash",
+                Content = new TrashPanelView(),
+                CloseButtonText = "Done",
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            await dialog.ShowAsync();
+        }
+        finally
+        {
+            _trashDialogOpen = false;
+        }
         FocusedSession?.RefreshFiles();
     }
 

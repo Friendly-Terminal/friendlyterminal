@@ -26,13 +26,15 @@ public sealed class RmInterceptor
         if (parts.Count == 0 || !DeleteCommands.Contains(parts[0])) return null;
 
         var targets = new List<string>();
-        var dirOk = false;
+        var recurse = false;
+        var emptyDirOk = false;
         foreach (var arg in parts.Skip(1))
         {
             if (arg.StartsWith('-'))
             {
                 if (!IsAcceptedFlag(arg)) return null;
-                dirOk |= AllowsDirectories(arg);
+                recurse |= AllowsRecursion(arg);
+                emptyDirOk |= AllowsEmptyDirectory(arg);
                 continue;
             }
             if (arg.Length == 0) return null;
@@ -45,18 +47,27 @@ public sealed class RmInterceptor
             if (!_fs.Exists(path)) return null;
             targets.Add(path);
         }
-        // Directories only with an explicit -r/-R/-d/-Recurse; otherwise let the
-        // real command run and error.
-        if (!dirOk && targets.Any(_fs.IsDirectory)) return null;
+        // Directories only with an explicit -r/-R/-Recurse; -d alone is POSIX
+        // rm -d, which deletes only empty directories. Otherwise let the real
+        // command run and error.
+        if (!recurse && targets.Any(t => _fs.IsDirectory(t) &&
+                                         !(emptyDirOk && _fs.ListEntries(t).Count == 0)))
+            return null;
 
         return targets.Count == 0 ? null : targets;
     }
 
-    private static bool AllowsDirectories(string arg)
+    private static bool AllowsRecursion(string arg)
     {
         var body = arg[1..];
         if (IsPrefixOf(body, "recurse")) return true;
-        return body.All(AllowedFlags.Contains) && body.IndexOfAny(new[] { 'r', 'R', 'd' }) >= 0;
+        return body.All(AllowedFlags.Contains) && body.IndexOfAny(new[] { 'r', 'R' }) >= 0;
+    }
+
+    private static bool AllowsEmptyDirectory(string arg)
+    {
+        var body = arg[1..];
+        return body.All(AllowedFlags.Contains) && body.Contains('d');
     }
 
     private static bool IsCwdOrAncestor(string path, string cwd)

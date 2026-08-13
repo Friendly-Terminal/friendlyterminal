@@ -103,19 +103,34 @@ function safelyHandle(action: () => void): void {
   }
 }
 
-async function fetchLatestVersion(): Promise<string | null> {
+type UpdateCheck =
+  | { status: "ok"; latest: string }
+  | { status: "none" }
+  | { status: "rate-limited" }
+  | { status: "network" };
+
+async function fetchLatestVersion(): Promise<UpdateCheck> {
   try {
     const response = await fetch("https://api.github.com/repos/Friendly-Terminal/friendlyterminal/releases/latest", {
       headers: { Accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(10000)
     });
+    if (response.status === 403 || response.status === 429) {
+      return { status: "rate-limited" };
+    }
+    if (response.status === 404) {
+      return { status: "none" };
+    }
     if (!response.ok) {
-      return null;
+      return { status: "network" };
     }
     const body = (await response.json()) as { tag_name?: unknown };
-    return typeof body.tag_name === "string" ? body.tag_name.replace(/^v/, "") : null;
+    if (typeof body.tag_name !== "string") {
+      return { status: "none" };
+    }
+    return { status: "ok", latest: body.tag_name.replace(/^v/, "") };
   } catch {
-    return null;
+    return { status: "network" };
   }
 }
 
@@ -136,15 +151,21 @@ function isNewerVersion(latest: string, current: string): boolean {
 }
 
 async function checkForUpdates(): Promise<void> {
-  const latest = await fetchLatestVersion();
-  if (latest === null) {
+  const result = await fetchLatestVersion();
+  if (result.status !== "ok") {
     await dialog.showMessageBox({
       type: "warning",
       message: "Could not check for updates",
-      detail: "Check your network connection and try again."
+      detail:
+        result.status === "rate-limited"
+          ? "GitHub is temporarily rate limiting update checks. Try again in a little while."
+          : result.status === "none"
+            ? "No releases have been published yet."
+            : "Check your network connection and try again."
     });
     return;
   }
+  const latest = result.latest;
   if (isNewerVersion(latest, app.getVersion())) {
     const { response } = await dialog.showMessageBox({
       type: "info",
@@ -167,11 +188,11 @@ async function checkForUpdates(): Promise<void> {
 }
 
 function checkForUpdatesAtStartup(): void {
-  void fetchLatestVersion().then((latest) => {
-    if (latest !== null && isNewerVersion(latest, app.getVersion()) && Notification.isSupported()) {
+  void fetchLatestVersion().then((result) => {
+    if (result.status === "ok" && isNewerVersion(result.latest, app.getVersion()) && Notification.isSupported()) {
       new Notification({
         title: "FriendlyTerminal update available",
-        body: `Version ${latest} is available. See Help → Check for Updates…`
+        body: `Version ${result.latest} is available. See Help → Check for Updates…`
       }).show();
     }
   });
